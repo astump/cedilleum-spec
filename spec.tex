@@ -1,0 +1,84 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{url}
+\usepackage{fullpage}
+
+\usepackage{subcaption}
+\usepackage{cedilleverbatim}
+
+\begin{document}
+
+\title{The Cedilleum Language Specification \\ \large Syntax, Typing, Reduction,
+  and Elaboration }
+
+\author{Christopher Jenkins}
+
+\maketitle
+
+\section{Syntax}
+
+\begin{figure}
+  \begin{subfigure}{1\linewidth}
+    \[
+      \begin{array}{llll}
+        id & & & \textnormal{identifiers for definitions}
+        \\ u & & & \textnormal{term variables}
+        \\ X & & & \textnormal{type variables}
+        \\ k & & & \textnormal{kind variables}
+        \\ x
+        & ::= & id\ |\ u\ |\ X\ |\ k
+        & \textnormal{any variable}
+      \end{array}
+    \]
+    \caption{Identifiers}
+  \end{subfigure}
+
+  \begin{subfigure}{1\linewidth}
+    \[
+      \begin{array}{llll}
+        \\ mod
+        & ::= & \textbf{module}\ id\ \textbf{.}\ imprt^*\ cmd^*\
+        & \textnormal{module declarations}
+
+        \\ imprt
+        & ::= & \textbf{import}\ id\ \textbf{.}
+        & \textnormal{module imports}
+        \\ cmd
+        & ::= & defTermOrType\ |\ defDataType\ |\ defKind
+        & \textnormal{definitions}
+        \\ 
+        \\ defTermOrType
+        & ::= & id\ chkType^?\ \textbf{=}\ term\ \textbf{.}\ |\ id\ \textbf{◂}\
+                kind\ \textbf{=}\ type\ \textbf{.}
+        & \textnormal{term and type definitions}
+        \\ checkType
+        & ::= & \textbf{◂}\ type
+        & \textnormal{annotation for term definition}
+        \\ defDataType
+        & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ kind\ \textbf{=}\
+                constr^*\ \textbf{.}
+        & \textnormal{datatype definitions}
+        \\ param
+        & ::= & \textbf{(}x\ \textbf{:}\ typeOrKind \textbf{)}
+        \\ constr
+        & ::= & \textbf{\textbar}\ id\ \textbf{:}\ type
+        \\ defKind
+        & ::= & k\ params^*\ \textbf{=}\ kind
+        \\
+        \\ arg
+        & ::= & term\ |\ \textbf{·}\ type
+        \\ kind
+        & ::= & \textbf{★} &
+        \\ & & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
+        \\ & & kind\ \textbf{➔}\ kind
+        \\ & & type\ \textbf{➔}\ kind
+        \\ & & k\ arg^*
+      \end{array}
+    \]
+  \end{subfigure}
+  \caption{Syntax for Cedilleum Programs}
+  \label{fig:sig-module}
+\end{figure}
+
+\end{document}
