@@ -18,67 +18,138 @@
 
 \section{Syntax}
 
-\begin{figure}
-  \begin{subfigure}{1\linewidth}
-    \[
-      \begin{array}{llll}
-        id & & & \textnormal{identifiers for definitions}
-        \\ u & & & \textnormal{term variables}
-        \\ X & & & \textnormal{type variables}
-        \\ k & & & \textnormal{kind variables}
-        \\ x
-        & ::= & id\ |\ u\ |\ X\ |\ k
-        & \textnormal{any variable}
-      \end{array}
-    \]
-    \caption{Identifiers}
-  \end{subfigure}
-
-  \begin{subfigure}{1\linewidth}
-    \[
-      \begin{array}{llll}
-        \\ mod
-        & ::= & \textbf{module}\ id\ \textbf{.}\ imprt^*\ cmd^*\
-        & \textnormal{module declarations}
-
-        \\ imprt
-        & ::= & \textbf{import}\ id\ \textbf{.}
-        & \textnormal{module imports}
-        \\ cmd
-        & ::= & defTermOrType\ |\ defDataType\ |\ defKind
-        & \textnormal{definitions}
-        \\ 
-        \\ defTermOrType
-        & ::= & id\ chkType^?\ \textbf{=}\ term\ \textbf{.}\ |\ id\ \textbf{◂}\
-                kind\ \textbf{=}\ type\ \textbf{.}
-        & \textnormal{term and type definitions}
-        \\ checkType
-        & ::= & \textbf{◂}\ type
-        & \textnormal{annotation for term definition}
-        \\ defDataType
-        & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ kind\ \textbf{=}\
-                constr^*\ \textbf{.}
-        & \textnormal{datatype definitions}
-        \\ param
-        & ::= & \textbf{(}x\ \textbf{:}\ typeOrKind \textbf{)}
-        \\ constr
-        & ::= & \textbf{\textbar}\ id\ \textbf{:}\ type
-        \\ defKind
-        & ::= & k\ params^*\ \textbf{=}\ kind
-        \\
-        \\ arg
-        & ::= & term\ |\ \textbf{·}\ type
-        \\ kind
-        & ::= & \textbf{★} &
-        \\ & & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
-        \\ & & kind\ \textbf{➔}\ kind
-        \\ & & type\ \textbf{➔}\ kind
-        \\ & & k\ arg^*
-      \end{array}
-    \]
-  \end{subfigure}
-  \caption{Syntax for Cedilleum Programs}
-  \label{fig:sig-module}
+\begin{figure}[h]
+  \[
+    \begin{array}{llll}
+      id & & & \textnormal{identifiers for definitions}
+      \\ u & & & \textnormal{term variables}
+      \\ X & & & \textnormal{type variables}
+      \\ k & & & \textnormal{kind variables}
+      \\ x
+         & ::= & id\ |\ u\ |\ X\ |\ k
+             & \textnormal{any variable}
+    \end{array}
+  \]
+  \caption{Identifiers}
 \end{figure}
 
+\begin{figure}[h]
+  \[
+    \begin{array}{llll}
+      uterms
+      & ::= & u
+      \\ & & \textbf{λ}\ u \textbf{.}\ uterm
+      \\ & & uterm\ uterm
+    \end{array}
+  \]
+  \caption{Untyped terms}
+\end{figure}
+
+\begin{figure}[h]
+  \[
+    \begin{array}{llll}
+      % module stuff
+      \\ mod
+      & ::= & \textbf{module}\ id\ \textbf{.}\ imprt^*\ cmd^*\
+      & \textnormal{module declarations}
+      \\ imprt
+      & ::= & \textbf{import}\ id\ \textbf{.}
+      & \textnormal{module imports}
+      \\ cmd
+      & ::= & defTermOrType
+      & \textnormal{definitions}
+      \\ & & defDataType
+      \\ & & defKind
+      % definitions
+      \\ 
+      \\ defTermOrType
+      & ::= & id\ chkType^?\ \textbf{=}\ term\ \textbf{.}
+      & \textnormal{term and type definitions}
+      \\ & & id\ \textbf{◂}\ kind\ \textbf{=}\ type\ \textbf{.}
+      \\ defDataType
+      & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ kind\ \textbf{=}\
+              constr^*\ \textbf{.}
+      & \textnormal{datatype definitions}
+      \\ defKind
+      & ::= & k\ params^*\ \textbf{=}\ kind
+      % auxilliary categories for definitions
+      \\ 
+      \\ checkType
+      & ::= & \textbf{◂}\ type
+      & \textnormal{annotation for term definition}
+      \\ param
+      & ::= & \textbf{(}x\ \textbf{:}\ typeOrKind \textbf{)}
+      \\ typeOrKind
+      & ::= & type
+      \\ & & kind
+      \\ constr
+      & ::= & \textbf{\textbar}\ id\ \textbf{:}\ type
+    \end{array}
+  \]
+  \caption{Modules and definitions}
+\end{figure}
+
+\begin{figure}
+  \[
+    \begin{array}{llll}
+      \\ kind
+      & ::= & \textbf{★}
+      \\ & & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
+      \\ & & kind\ \textbf{➔}\ kind
+      \\ & & type\ \textbf{➔}\ kind
+      \\ & & k\ term
+      \\ & & k\ \textbf{·}\ type
+      \\ type
+      & ::= & X
+      \\ & & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
+         & \textnormal{explicit product}
+      \\ & &  \textbf{∀}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
+         & \textnormal{implicit product}
+      \\ & &  \textbf{λ}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
+      \\ & & type\ \textbf{➔}\ type
+         & \textnormal{normal arrow type}
+      \\ & & type\ \textbf{➾}\ type
+         & \textnormal{arrow with erased domain}
+      \\ & & \textbf{\{}\ uterm\ ≃\ uterm \textbf{\}}
+         & \textnormal{untyped equality}
+    \end{array}
+  \]
+  \caption{Kinds and types}
+\end{figure}
+
+\begin{figure}[h]
+  \[
+    \begin{array}{llll}
+      \\ term
+      & ::= & x
+      \\ & & \textbf{Λ}\ x\ class^?\ \textbf{.}\ term
+      \\ & & \textbf{λ}\ x\ class^?\ \textbf{.}\ term
+      \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ term
+         & \textnormal{let}
+      \\ & & term\ term
+         & \textnormal{normal application}
+      \\ & & term\ \textbf{-}\ term
+         & \textnormal{application to erased argument}
+      \\ & & term\ \textbf{·}\ type
+         & \textnormal{application to type}
+      \\ & & \textbf{β} \textbf{\textless} term \textbf{\textgreater}\
+             \textbf{\{} term \textbf{\}}
+         & \textnormal{reflexivity of equality}
+      \\ & & \textbf{ς}\ term
+         & \textnormal{symmetry of equality}
+      \\ & & \textbf{ρ}\ term\ guide^?\ \textbf{-}\ term
+      \\ & & \textbf{δ}\ type^?\ \textbf{-}\ term
+         & \text{ex falso quodlibet}
+      \\ & & \textbf{φ}\ term\ \textbf{-}\ term \textbf{\{} term \textbf{\}}
+         % TODO ind. elimination
+         % TODO eq. reasoning primitives
+      \\
+      \\ class
+      & ::= & \textbf{:}\ typeOrKind
+      \\ guide
+      & ::= & \textbf{@}\ x \textbf{.}\ type
+    \end{array}
+  \]
+  \caption{Annotated Terms}
+\end{figure}
 \end{document}
