@@ -73,11 +73,11 @@
               constr^*\ \textbf{.}
       & \textnormal{datatype definitions}
       \\ defKind
-      & ::= & k\ params^*\ \textbf{=}\ kind
+      & ::= & k\ \textbf{=}\ kind
       % auxilliary categories for definitions
       \\ 
       \\ checkType
-      & ::= & \textbf{◂}\ type
+      & ::= & \textbf{:}\ type
       & \textnormal{annotation for term definition}
       \\ param
       & ::= & \textbf{(}x\ \textbf{:}\ typeOrKind \textbf{)}
@@ -104,7 +104,7 @@
       \\ & & k\ \textbf{·}\ type
       \\ type
       & ::= & X
-      \\ & & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
+      \\ & & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
          & \textnormal{explicit product}
       \\ & &  \textbf{∀}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
          & \textnormal{implicit product}
@@ -114,6 +114,8 @@
          & \textnormal{normal arrow type}
       \\ & & type\ \textbf{➾}\ type
          & \textnormal{arrow with erased domain}
+      \\ & & type\ \textbf{·}\ type
+      \\ & & type\ term
       \\ & & \textbf{\{}\ uterm\ ≃\ uterm \textbf{\}}
          & \textnormal{untyped equality}
     \end{array}
@@ -134,17 +136,18 @@
          & \textnormal{let}
       \\ & & term\ arg^*
          & \textnormal{applications}
-      \\ & & \textbf{β} \textbf{\textless} term \textbf{\textgreater}\
-             \textbf{\{} term \textbf{\}}
+      \\ & & \textbf{β}\ \textbf{\{} term \textbf{\}}
          & \textnormal{reflexivity of equality}
       \\ & & \textbf{ς}\ term
          & \textnormal{symmetry of equality}
-      \\ & & \textbf{ρ}\ term\ guide^?\ \textbf{-}\ term
-         & \textnormal{equality elimination by type-guided rewriting}
-      \\ & & \textbf{δ}\ type^?\ \textbf{-}\ term
-         & \textnormal{ex falso quodlibet}
+      \\ & & \textbf{ρ}\ term\ \textbf{-}\ term
+         & \text{equality elimination by rewriting}
+      \\ & & \textbf{δ}\ \textbf{-}\ term
+         & \text{ex falso quodlibet}
       \\ & & \textbf{φ}\ term\ \textbf{-}\ term\ \textbf{\{} term \textbf{\}}
-         & \textnormal{cast}
+         & \text{type cast}
+      \\ & & \textbf{χ}\ type^?\ \textbf{-}\ term
+         & \text{check a term against a type}
       \\ & & \textbf{μ}\ term\ motive^?\ \textbf{\{}\ case^*\ \textbf{\}}
          & \textnormal{pattern match and fixpoint}
       \\
@@ -157,10 +160,7 @@
          & \textnormal{application to type}
       \\ class
       & ::= & \textbf{:}\ typeOrKind
-      \\ guide
-      & ::= & \textbf{@}\ x \textbf{.}\ type
-         & \textnormal{guide for equality rewrite}
-      \\ motive
+     \\ motive
       & ::= & \textbf{@}\ type
          & \textnormal{motive for induction}
       \\ case
