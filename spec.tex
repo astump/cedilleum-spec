@@ -7,6 +7,7 @@
 \usepackage{subcaption}
 \usepackage{cedilleverbatim}
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
+\DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
 
 \begin{document}
 
@@ -22,13 +23,16 @@
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      id & & & \textnormal{identifiers for definitions}
-      \\ u & & & \textnormal{term variables}
-      \\ X & & & \textnormal{type variables}
-      \\ k & & & \textnormal{kind variables}
-      \\ x
-         & ::= & id\ |\ u\ |\ X\ |\ k
-             & \textnormal{any variable}
+      id & &
+      & \textnormal{identifiers for definitions}
+      \\ u & &
+      & \textnormal{term variables}
+      \\ X & &
+      & \textnormal{type variables}
+      \\ k & &
+      & \textnormal{kind variables}
+      \\ x & ::= & id\ |\ u\ |\ X\
+      & \textnormal{non-kind variables}
     \end{array}
   \]
   \caption{Identifiers}
@@ -66,7 +70,7 @@
       \\ defTermOrType
       & ::= & id\ checkType^?\ \textbf{=}\ term\ \textbf{.}
       & \textnormal{term definition}
-      \\ & & id\ \textbf{◂}\ kind\ \textbf{=}\ type\ \textbf{.}
+      \\ & & id\ \textbf{:}\ kind\ \textbf{=}\ type\ \textbf{.}
       & \textnormal{type definition}
       \\ defDataType
       & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ kind\ \textbf{=}\
@@ -100,8 +104,7 @@
          & \textnormal{explicit product}
       \\ & & typeOrKind\ \textbf{➔}\ kind
          & \textnormal{kind arrow}
-      \\ & & k\ term
-      \\ & & k\ \textbf{·}\ type
+      \\ & & \textbf{(}kind\textbf{)}
       \\ type
       & ::= & X
       \\ & & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
@@ -118,6 +121,7 @@
       \\ & & type\ term
       \\ & & \textbf{\{}\ uterm\ ≃\ uterm \textbf{\}}
          & \textnormal{untyped equality}
+      \\ & & \textbf{(}type\textbf{)}
     \end{array}
   \]
   \caption{Kinds and types}
@@ -134,8 +138,14 @@
          & \textnormal{erased abstraction}
       \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ term
          & \textnormal{let}
-      \\ & & term\ arg^*
-         & \textnormal{applications}
+      \\ & & term\ term
+         & \text{applications}
+      \\ & & term\ \textbf{-}\ term
+         & \text{application to an erased term}
+      \\ & & term\ \textbf{·}\ type
+         & \text{application to a type}
+      % \\ & & term\ arg^*
+      %    & \textnormal{applications}
       \\ & & \textbf{β}\ \textbf{\{} term \textbf{\}}
          & \textnormal{reflexivity of equality}
       \\ & & \textbf{ς}\ term
@@ -150,21 +160,22 @@
          & \text{check a term against a type}
       \\ & & \textbf{μ}\ term\ motive^?\ \textbf{\{}\ case^*\ \textbf{\}}
          & \textnormal{pattern match and fixpoint}
+      \\ & & \textbf{(}term\textbf{)}
       \\
-      \\ arg
-      & ::= & term
-         & \textnormal{normal application}
-      \\ & & \textbf{-}\ term
-         & \textnormal{application to erased term}
-      \\ & & \textbf{·}\ term
-         & \textnormal{application to type}
+      \\ vararg
+      & ::= & u
+         & \text{normal constructor argument}
+      \\ & & \textbf{-}\ u
+         & \text{erased constructor argument}
+      \\ & & \textbf{·}\ X
+         & \text{type constructor argument}
       \\ class
       & ::= & \textbf{:}\ typeOrKind
      \\ motive
       & ::= & \textbf{@}\ type
          & \textnormal{motive for induction}
       \\ case
-      & ::= & \textbf{\textbar}\ id\ arg^*\ \textbf{.}\ term
+      & ::= & \textbf{\textbar}\ id\ arg^*\ \textbf{↦}\ term
     \end{array}
   \]
   \caption{Annotated Terms}
