@@ -1,6 +1,7 @@
 \documentclass{article}
 
 \usepackage{amsmath,amssymb,amsthm}
+%\usepackage{unicode-math}
 \usepackage{url}
 \usepackage{fullpage}
 
@@ -8,6 +9,7 @@
 \usepackage{cedilleverbatim}
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
 \DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
+\DeclareUnicodeCharacter{25CF}{\ensuremath{\medbullet}}
 
 \begin{document}
 
@@ -78,6 +80,7 @@
       & \textnormal{datatype definitions}
       \\ defKind
       & ::= & k\ \textbf{=}\ kind
+      & \text{kind definition}
       % auxilliary categories for definitions
       \\ 
       \\ checkType
@@ -99,29 +102,34 @@
   \[
     \begin{array}{llll}
       \\ kind
-      & ::= & \textbf{★}
-      \\ & & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
+      \\ & ::= & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
          & \textnormal{explicit product}
       \\ & & typeOrKind\ \textbf{➔}\ kind
          & \textnormal{kind arrow}
+      \\ & & \textbf{★}
       \\ & & \textbf{(}kind\textbf{)}
       \\ type
-      & ::= & X
-      \\ & & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
+      \\ & ::= & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
          & \textnormal{explicit product}
       \\ & &  \textbf{∀}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
          & \textnormal{implicit product}
       \\ & &  \textbf{λ}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
          & \textnormal{type-level function}
-      \\ & & type\ \textbf{➔}\ type
-         & \textnormal{normal arrow type}
       \\ & & type\ \textbf{➾}\ type
          & \textnormal{arrow with erased domain}
+      \\ & & type\ \textbf{➔}\ type
+         & \textnormal{normal arrow type}
       \\ & & type\ \textbf{·}\ type
+         & \text{application to another type}
       \\ & & type\ term
+         & \text{application to a term}
       \\ & & \textbf{\{}\ uterm\ ≃\ uterm \textbf{\}}
          & \textnormal{untyped equality}
       \\ & & \textbf{(}type\textbf{)}
+      \\ & & X
+         & \text{type variable}
+      \\ & & \bullet
+         & \text{hole for incomplete types}
     \end{array}
   \]
   \caption{Kinds and types}
@@ -131,51 +139,57 @@
   \[
     \begin{array}{llll}
       \\ term
-      & ::= & x
-      \\ & & \textbf{λ}\ x\ class^?\ \textbf{.}\ term
-         & \textnormal{normal abstraction}
+      & ::= & \textbf{λ}\ x\ class^?\ \textbf{.}\ term
+      & \textnormal{normal abstraction}
       \\ & & \textbf{Λ}\ x\ class^?\ \textbf{.}\ term
-         & \textnormal{erased abstraction}
+      & \textnormal{erased abstraction}
       \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ term
-         & \textnormal{let}
-      \\ & & term\ term
-         & \text{applications}
-      \\ & & term\ \textbf{-}\ term
-         & \text{application to an erased term}
-      \\ & & term\ \textbf{·}\ type
-         & \text{application to a type}
-      % \\ & & term\ arg^*
-      %    & \textnormal{applications}
-      \\ & & \textbf{β}\ \textbf{\{} term \textbf{\}}
-         & \textnormal{reflexivity of equality}
-      \\ & & \textbf{ς}\ term
-         & \textnormal{symmetry of equality}
+      & \textnormal{let}
       \\ & & \textbf{ρ}\ term\ \textbf{-}\ term
-         & \text{equality elimination by rewriting}
-      \\ & & \textbf{δ}\ \textbf{-}\ term
-         & \text{ex falso quodlibet}
+      & \text{equality elimination by rewriting}
       \\ & & \textbf{φ}\ term\ \textbf{-}\ term\ \textbf{\{} term \textbf{\}}
-         & \text{type cast}
+      & \text{type cast}
       \\ & & \textbf{χ}\ type^?\ \textbf{-}\ term
-         & \text{check a term against a type}
+      & \text{check a term against a type}
+      \\ & & \textbf{δ}\ \textbf{-}\ term
+      & \text{ex falso quodlibet}
+      \\ & & \textbf{θ}\ term\ term
+      & \text{elimination with a motive}
+      \\ & & term\ term
+      & \text{applications}
+      \\ & & term\ \textbf{-}\ term
+      & \text{application to an erased term}
+      \\ & & term\ \textbf{·}\ type
+      & \text{application to a type}
+      % \\ & & term\ arg^*
+      % & \textnormal{applications}
+      \\ & & \textbf{β}\ \textbf{\{} term \textbf{\}}
+      & \textnormal{reflexivity of equality}
+      \\ & & \textbf{ς}\ term
+      & \textnormal{symmetry of equality}
       \\ & & \textbf{μ}\ term\ motive^?\ \textbf{\{}\ case^*\ \textbf{\}}
-         & \textnormal{pattern match and fixpoint}
+      & \textnormal{pattern match and fixpoint}
+      \\ & & u
+      & \text{term variable}
       \\ & & \textbf{(}term\textbf{)}
+      \\ & & \bullet
+      & \text{hole for incomplete term}
       \\
       \\ vararg
       & ::= & u
-         & \text{normal constructor argument}
+      & \text{normal constructor argument}
       \\ & & \textbf{-}\ u
-         & \text{erased constructor argument}
+      & \text{erased constructor argument}
       \\ & & \textbf{·}\ X
-         & \text{type constructor argument}
+      & \text{type constructor argument}
       \\ class
       & ::= & \textbf{:}\ typeOrKind
-     \\ motive
+      \\ motive
       & ::= & \textbf{@}\ type
-         & \textnormal{motive for induction}
+      & \textnormal{motive for induction}
       \\ case
       & ::= & \textbf{\textbar}\ id\ arg^*\ \textbf{↦}\ term
+      & \text{pattern-matching cases}
     \end{array}
   \]
   \caption{Annotated Terms}
