@@ -38,19 +38,35 @@
     \end{array}
   \]
   \caption{Identifiers}
+  \label{fig:identifiers}
 \end{figure}
+
+\paragraph{Identifiers}
+Figure \ref{fig:identifiers} gives the metavariables used in our grammar for
+identifiers. We consider all identifiers as coming from two distinct lexical
+``pools'' -- regular identifiers (consisting of identifiers $id$ given for
+modules and definitions, term variables $u$, and type variables $X$) and kind
+identifiers $k$. In Cedilleum source files (as in the parent language Cedille)
+kind variables should be prefixed with $\kappa$.
 
 \begin{figure}[h]
   \[
     \begin{array}{llll}
       uterms
       & ::= & u
+      & \text{variables}
       \\ & & \textbf{λ}\ u \textbf{.}\ uterm
+      & \text{functions}
       \\ & & uterm\ uterm
+      & \text{applications}
     \end{array}
   \]
   \caption{Untyped terms}
+  \label{fig:pure-terms}
 \end{figure}
+
+\paragraph{Untyped Terms}
+The grammar of pure (untyped) terms is that of the λ-calculus.
 
 \begin{figure}[h]
   \[
@@ -96,7 +112,42 @@
     \end{array}
   \]
   \caption{Modules and definitions}
+  \label{fig:mods-defs}
 \end{figure}
+
+\paragraph{Modules and Definitions}
+All Cedilleum source files start with $mod$, which consists of a module
+declaration, a sequence of import statements which bring into scope definitions
+from other source files, and a sequence of \textit{commands} defining terms,
+types, and kinds. As an illustration, consider the first few lines of a
+hypothetical \texttt{list.ced}:
+
+\begin{verbatim}
+module list .
+
+import nat .
+\end{verbatim}
+
+\noindent Imports are handled first by consulting a global options files
+known to the Cedilleum compiler (on *nix systems \verb|~/.cedille/options|)
+containing a search path of directories, and next (if that fails) by searching
+the directory containing the file being checked.
+
+Term and type definitions are given with an identifier, a classifer (type or
+kind, resp.) to check the definition against, and the definition. For term
+definitions, giving the type is optional. As an example, consider the
+definitions for the type of Church-encoded lists and two variants of the nil
+constructor, the first with a type annotation and the second without:
+
+\begin{verbatim}
+cList : ★ ➔ ★
+      = λ A : ★ . ∀ X : ★ . (A ➔ X ➔ X) ➔ X ➔ X .
+
+cNil  : ∀ A : ★ . cList · A
+      = Λ A . Λ X . λ c . λ n . n .
+cNil' = Λ A : ★ . Λ X : ★ . λ c : A ➔ X ➔ X . λ n : X . n .
+\end{verbatim}
+
 
 \begin{figure}
   \[
@@ -133,6 +184,7 @@
     \end{array}
   \]
   \caption{Kinds and types}
+  \label{fig:kinds-types}
 \end{figure}
 
 \begin{figure}[h]
@@ -193,5 +245,7 @@
     \end{array}
   \]
   \caption{Annotated Terms}
+  \label{fig:ann-terms}
 \end{figure}
+
 \end{document}
