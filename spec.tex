@@ -10,6 +10,7 @@
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
 \DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
 \DeclareUnicodeCharacter{25CF}{\ensuremath{\medbullet}}
+\DeclareUnicodeCharacter{1D48C}{\ensuremath{\kappa}}
 
 \begin{document}
 
@@ -90,14 +91,14 @@ The grammar of pure (untyped) terms is that of the λ-calculus.
       & \textnormal{term definition}
       \\ & & id\ \textbf{:}\ kind\ \textbf{=}\ type\ \textbf{.}
       & \textnormal{type definition}
+      \\ defKind
+      & ::= & k\ \textbf{=}\ kind
+      & \text{kind definition}
       \\ defDataType
       & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ kind\ \textbf{=}\
               constr^*\ \textbf{.}
       & \textnormal{datatype definitions}
-      \\ defKind
-      & ::= & k\ \textbf{=}\ kind
-      & \text{kind definition}
-      % auxilliary categories for definitions
+     % auxilliary categories for definitions
       \\ 
       \\ checkType
       & ::= & \textbf{:}\ type
@@ -123,7 +124,7 @@ types, and kinds. As an illustration, consider the first few lines of a
 hypothetical \texttt{list.ced}:
 
 \begin{verbatim}
-module list .
+module vec .
 
 import nat .
 \end{verbatim}
@@ -133,7 +134,7 @@ known to the Cedilleum compiler (on *nix systems \verb|~/.cedille/options|)
 containing a search path of directories, and next (if that fails) by searching
 the directory containing the file being checked.
 
-Term and type definitions are given with an identifier, a classifer (type or
+Term and type definitions are given with an identifier, a classifier (type or
 kind, resp.) to check the definition against, and the definition. For term
 definitions, giving the type is optional. As an example, consider the
 definitions for the type of Church-encoded lists and two variants of the nil
@@ -148,19 +149,42 @@ cNil  : ∀ A : ★ . cList · A
 cNil' = Λ A : ★ . Λ X : ★ . λ c : A ➔ X ➔ X . λ n : X . n .
 \end{verbatim}
 
+Kind definitions are given without classifiers (all kinds have super-kind
+$\Box$), e.g. \verb;𝒌func = ★ ➔ ★;
 
-\begin{figure}
+Inductive datatype definitions take a set of \textit{parameters} (term and type
+variables which remain constant throughout the definition) well as a set of
+\textit{indices} (term and type variables which \textit{can} vary), followed by
+zero or more constructors. Each constructor begins with
+\textbf{\textbar}\footnote{The first of these is optional.} and then an
+identifier and type is given. As an example, consider the following two
+definitions for lists and vectors (length-indexed lists).
+
+\begin{verbatim}
+data List (A : ★) : ★ =
+  | nil  : List
+  | cons : A ➔ List ➔ List
+  .
+data Vec (A : ★) : Nat ➔ ★ =
+  | vnil  : Vec Z
+  | vcons : ∀ n : Nat . A ➔ Vec n ➔ Vec (S n)
+  .
+\end{verbatim}
+
+\begin{figure}[h]
   \[
     \begin{array}{llll}
       \\ kind
-      \\ & ::= & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
-         & \textnormal{explicit product}
+      & ::= & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
+      & \textnormal{explicit product}
       \\ & & typeOrKind\ \textbf{➔}\ kind
-         & \textnormal{kind arrow}
+      & \textnormal{kind arrow}
       \\ & & \textbf{★}
+      & \text{the kind of types that classify terms}
       \\ & & \textbf{(}kind\textbf{)}
+      \\ 
       \\ type
-      \\ & ::= & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
+      & ::= & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
          & \textnormal{explicit product}
       \\ & &  \textbf{∀}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
          & \textnormal{implicit product}
@@ -205,7 +229,7 @@ cNil' = Λ A : ★ . Λ X : ★ . λ c : A ➔ X ➔ X . λ n : X . n .
       & \text{check a term against a type}
       \\ & & \textbf{δ}\ \textbf{-}\ term
       & \text{ex falso quodlibet}
-      \\ & & \textbf{θ}\ term\ term
+      \\ & & \textbf{θ}\ term\ term^*
       & \text{elimination with a motive}
       \\ & & term\ term
       & \text{applications}
@@ -226,7 +250,6 @@ cNil' = Λ A : ★ . Λ X : ★ . λ c : A ➔ X ➔ X . λ n : X . n .
       \\ & & \textbf{(}term\textbf{)}
       \\ & & \bullet
       & \text{hole for incomplete term}
-      \\
       \\ vararg
       & ::= & u
       & \text{normal constructor argument}
@@ -247,5 +270,16 @@ cNil' = Λ A : ★ . Λ X : ★ . λ c : A ➔ X ➔ X . λ n : X . n .
   \caption{Annotated Terms}
   \label{fig:ann-terms}
 \end{figure}
+
+\paragraph{Expression Language}
+
+In Cedilleum, the expression language is stratified into three main ``classes'':
+kinds, types, and terms. Kinds and types are listed in Figure
+\ref{fig:kinds-types} and terms are listed in Figure \ref{fig:ann-terms} along
+with some auxiliary grammatical categories. In both of these figures, the
+constructs forming expressions are listed from lowest to highest precedence --
+``abstractors'' ($\lambda\ \Lambda\ \Pi\ \forall$) bind most loosely and
+parentheses most tightly. Associativity is as-expected, with arrows (➔ ➾) and
+applications being left-associative and abstractors are right-associative.
 
 \end{document}
