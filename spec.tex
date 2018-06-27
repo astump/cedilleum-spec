@@ -9,8 +9,13 @@
 \usepackage{cedilleverbatim}
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
 \DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
-\DeclareUnicodeCharacter{25CF}{\ensuremath{\medbullet}}
+\DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
 \DeclareUnicodeCharacter{1D48C}{\ensuremath{\kappa}}
+
+% useful macros
+\newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
+\newcommand{\absu}[3]{{#1}\, #2.\, #3}
+\mathchardef\mhyph="2D % Define a "math hyphen"
 
 \begin{document}
 
@@ -32,7 +37,7 @@
       & \textnormal{term variables}
       \\ X & &
       & \textnormal{type variables}
-      \\ k & &
+      \\ 𝒌 & &
       & \textnormal{kind variables}
       \\ x & ::= & id\ |\ u\ |\ X\
       & \textnormal{non-kind variables}
@@ -47,18 +52,19 @@ Figure \ref{fig:identifiers} gives the metavariables used in our grammar for
 identifiers. We consider all identifiers as coming from two distinct lexical
 ``pools'' -- regular identifiers (consisting of identifiers $id$ given for
 modules and definitions, term variables $u$, and type variables $X$) and kind
-identifiers $k$. In Cedilleum source files (as in the parent language Cedille)
-kind variables should be prefixed with $\kappa$.
+identifiers $\kappa$. In Cedilleum source files (as in the parent language Cedille)
+kind variables should be literally prefixed with $\kappa$ -- the suffix can be
+any string that would by itself be a legal non-kind identifier.
 
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      uterms
+      e
       & ::= & u
       & \text{variables}
-      \\ & & \textbf{λ}\ u \textbf{.}\ uterm
+      \\ & & \absu{\textbf{λ}}{u}{e}
       & \text{functions}
-      \\ & & uterm\ uterm
+      \\ & & e\ e'
       & \text{applications}
     \end{array}
   \]
@@ -87,29 +93,26 @@ The grammar of pure (untyped) terms is that of the λ-calculus.
       % definitions
       \\ 
       \\ defTermOrType
-      & ::= & id\ checkType^?\ \textbf{=}\ term\ \textbf{.}
+      & ::= & id\ checkType^?\ \textbf{=}\ t\ \textbf{.}
       & \textnormal{term definition}
-      \\ & & id\ \textbf{:}\ kind\ \textbf{=}\ type\ \textbf{.}
+      \\ & & id\ \textbf{:}\ K\ \textbf{=}\ T\ \textbf{.}
       & \textnormal{type definition}
       \\ defKind
-      & ::= & k\ \textbf{=}\ kind
+      & ::= & 𝒌\ \textbf{=}\ K
       & \text{kind definition}
       \\ defDataType
-      & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ kind\ \textbf{=}\
+      & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ K\ \textbf{=}\
               constr^*\ \textbf{.}
       & \textnormal{datatype definitions}
      % auxilliary categories for definitions
       \\ 
       \\ checkType
-      & ::= & \textbf{:}\ type
+      & ::= & \textbf{:}\ T
       & \textnormal{annotation for term definition}
       \\ param
-      & ::= & \textbf{(}x\ \textbf{:}\ typeOrKind \textbf{)}
-      \\ typeOrKind
-      & ::= & type
-      \\ & & kind
+      & ::= & \textbf{(}x\ \textbf{:}\ C \textbf{)}
       \\ constr
-      & ::= & \textbf{\textbar}\ id\ \textbf{:}\ type
+      & ::= & \textbf{\textbar}\ id\ \textbf{:}\ T
     \end{array}
   \]
   \caption{Modules and definitions}
@@ -117,14 +120,14 @@ The grammar of pure (untyped) terms is that of the λ-calculus.
 \end{figure}
 
 \paragraph{Modules and Definitions}
-All Cedilleum source files start with $mod$, which consists of a module
+All Cedilleum source files start with production $mod$, which consists of a module
 declaration, a sequence of import statements which bring into scope definitions
 from other source files, and a sequence of \textit{commands} defining terms,
 types, and kinds. As an illustration, consider the first few lines of a
 hypothetical \texttt{list.ced}:
 
 \begin{verbatim}
-module vec .
+module list .
 
 import nat .
 \end{verbatim}
@@ -138,7 +141,8 @@ Term and type definitions are given with an identifier, a classifier (type or
 kind, resp.) to check the definition against, and the definition. For term
 definitions, giving the type is optional. As an example, consider the
 definitions for the type of Church-encoded lists and two variants of the nil
-constructor, the first with a type annotation and the second without:
+constructor, the first with a top-level type annotation and the second with
+annotations sprinkled on binders:
 
 \begin{verbatim}
 cList : ★ ➔ ★
@@ -155,10 +159,10 @@ $\Box$), e.g. \verb;𝒌func = ★ ➔ ★;
 Inductive datatype definitions take a set of \textit{parameters} (term and type
 variables which remain constant throughout the definition) well as a set of
 \textit{indices} (term and type variables which \textit{can} vary), followed by
-zero or more constructors. Each constructor begins with
-\textbf{\textbar}\footnote{The first of these is optional.} and then an
-identifier and type is given. As an example, consider the following two
-definitions for lists and vectors (length-indexed lists).
+zero or more constructors. Each constructor begins with \textbf{\textbar} (the
+first is optional) and then an identifier and type is given. As an example,
+consider the following two definitions for lists and vectors (length-indexed
+lists).
 
 \begin{verbatim}
 data List (A : ★) : ★ =
@@ -174,33 +178,36 @@ data Vec (A : ★) : Nat ➔ ★ =
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      \\ kind
-      & ::= & \textbf{Π}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ kind
+      C
+      & ::= & K & \text{kinds}
+      \\ & & T & \text{types}
+      \\ K
+      & ::= & \textbf{Π}\ x\ \textbf{:}\ C\ \textbf{.}\ K
       & \textnormal{explicit product}
-      \\ & & typeOrKind\ \textbf{➔}\ kind
+      \\ & & C\ \textbf{➔}\ K
       & \textnormal{kind arrow}
       \\ & & \textbf{★}
       & \text{the kind of types that classify terms}
-      \\ & & \textbf{(}kind\textbf{)}
+      \\ & & \textbf{(}K\textbf{)}
       \\ 
-      \\ type
-      & ::= & \textbf{Π}\ x\ \textbf{:}\ type\ \textbf{.}\ type
+      \\ T
+      & ::= & \textbf{Π}\ x\ \textbf{:}\ T\ \textbf{.}\ T
          & \textnormal{explicit product}
-      \\ & &  \textbf{∀}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
+      \\ & &  \textbf{∀}\ x\ \textbf{:}\ C\ \textbf{.}\ T
          & \textnormal{implicit product}
-      \\ & &  \textbf{λ}\ x\ \textbf{:}\ typeOrKind\ \textbf{.}\ type
+      \\ & &  \textbf{λ}\ x\ \textbf{:}\ C\ \textbf{.}\ T
          & \textnormal{type-level function}
-      \\ & & type\ \textbf{➾}\ type
+      \\ & & T\ \textbf{➾}\ T'
          & \textnormal{arrow with erased domain}
-      \\ & & type\ \textbf{➔}\ type
+      \\ & & T\ \textbf{➔}\ T'
          & \textnormal{normal arrow type}
-      \\ & & type\ \textbf{·}\ type
+      \\ & & T\ \textbf{·}\ T'
          & \text{application to another type}
-      \\ & & type\ term
+      \\ & & T\ t
          & \text{application to a term}
-      \\ & & \textbf{\{}\ uterm\ ≃\ uterm \textbf{\}}
+      \\ & & \textbf{\{}\ e\ ≃\ e' \textbf{\}}
          & \textnormal{untyped equality}
-      \\ & & \textbf{(}type\textbf{)}
+      \\ & & \textbf{(}T\textbf{)}
       \\ & & X
          & \text{type variable}
       \\ & & \bullet
@@ -214,56 +221,59 @@ data Vec (A : ★) : Nat ➔ ★ =
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      \\ term
-      & ::= & \textbf{λ}\ x\ class^?\ \textbf{.}\ term
+      s
+      & ::= & t & \text{term}
+      \\ & & T & \text{type}
+      \\ t
+      & ::= & \textbf{λ}\, x\ class^?\! \textbf{.}\, t
       & \textnormal{normal abstraction}
-      \\ & & \textbf{Λ}\ x\ class^?\ \textbf{.}\ term
+      \\ & & \textbf{Λ}\, x\ class^?\! \textbf{.}\, t
       & \textnormal{erased abstraction}
-      \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ term
+      \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ t
       & \textnormal{let}
-      \\ & & \textbf{ρ}\ term\ \textbf{-}\ term
+      \\ & & \textbf{ρ}\ t\ \textbf{-}\ t'
       & \text{equality elimination by rewriting}
-      \\ & & \textbf{φ}\ term\ \textbf{-}\ term\ \textbf{\{} term \textbf{\}}
+      \\ & & \textbf{φ}\ t\ \textbf{-}\ t'\ \textbf{\{} t'' \textbf{\}}
       & \text{type cast}
-      \\ & & \textbf{χ}\ type^?\ \textbf{-}\ term
+      \\ & & \textbf{χ}\ T^?\ \textbf{-}\ t
       & \text{check a term against a type}
-      \\ & & \textbf{δ}\ \textbf{-}\ term
+      \\ & & \textbf{δ}\ \textbf{-}\ t
       & \text{ex falso quodlibet}
-      \\ & & \textbf{θ}\ term\ term^*
+      \\ & & \textbf{θ}\ t\ t'^*
       & \text{elimination with a motive}
-      \\ & & term\ term
+      \\ & & t\ t'
       & \text{applications}
-      \\ & & term\ \textbf{-}\ term
+      \\ & & t\ \textbf{-}t'
       & \text{application to an erased term}
-      \\ & & term\ \textbf{·}\ type
+      \\ & & t\ \textbf{·}T
       & \text{application to a type}
-      % \\ & & term\ arg^*
-      % & \textnormal{applications}
-      \\ & & \textbf{β}\ \textbf{\{} term \textbf{\}}
+      \\ & & \textbf{β}\ \textbf{\{} t \textbf{\}}
       & \textnormal{reflexivity of equality}
-      \\ & & \textbf{ς}\ term
+      \\ & & \textbf{ς}\ t
       & \textnormal{symmetry of equality}
-      \\ & & \textbf{μ}\ term\ motive^?\ \textbf{\{}\ case^*\ \textbf{\}}
+      \\ & & \textbf{μ}\ t\ motive^?\ \textbf{\{}\ case^*\ \textbf{\}}
       & \textnormal{pattern match and fixpoint}
+      \\ & & \textbf{μ'}\ t\ motive^?\ \textbf{\{}\ case^*\ \textbf{\}}
+      & \text{auxiliary pattern match}
       \\ & & u
       & \text{term variable}
-      \\ & & \textbf{(}term\textbf{)}
+      \\ & & \textbf{(}t\textbf{)}
       \\ & & \bullet
       & \text{hole for incomplete term}
       \\ vararg
       & ::= & u
       & \text{normal constructor argument}
-      \\ & & \textbf{-}\ u
+      \\ & & \textbf{-}u
       & \text{erased constructor argument}
-      \\ & & \textbf{·}\ X
+      \\ & & \textbf{·}X
       & \text{type constructor argument}
       \\ class
-      & ::= & \textbf{:}\ typeOrKind
+      & ::= & \textbf{:}\ C
       \\ motive
-      & ::= & \textbf{@}\ type
+      & ::= & \textbf{@}\ T
       & \textnormal{motive for induction}
       \\ case
-      & ::= & \textbf{\textbar}\ id\ arg^*\ \textbf{↦}\ term
+      & ::= & \textbf{\textbar}\ id\ vararg^*\ \textbf{↦}\ t
       & \text{pattern-matching cases}
     \end{array}
   \]
@@ -271,7 +281,7 @@ data Vec (A : ★) : Nat ➔ ★ =
   \label{fig:ann-terms}
 \end{figure}
 
-\paragraph{Expression Language}
+\paragraph{Types and Kinds}
 
 In Cedilleum, the expression language is stratified into three main ``classes'':
 kinds, types, and terms. Kinds and types are listed in Figure
@@ -280,6 +290,79 @@ with some auxiliary grammatical categories. In both of these figures, the
 constructs forming expressions are listed from lowest to highest precedence --
 ``abstractors'' ($\lambda\ \Lambda\ \Pi\ \forall$) bind most loosely and
 parentheses most tightly. Associativity is as-expected, with arrows (➔ ➾) and
-applications being left-associative and abstractors are right-associative.
+applications being left-associative and abstractors being right-associative.
+
+The language of kinds and types is similar to that found in the Calculus of
+Implicit Constructions\footnote{Cite}. Kinds are formed by dependent and
+non-dependent products (Π and ➔) and base kind for types which can classify
+terms (★). Types are also formed by the usual (dependent and non-dependent)
+products (Π and ➔) and also \textit{implicit} products (∀ and ➾) which quantify
+over erased arguments (that is, arguments that disappear at run-time).
+Π-products are only allowed to quantify over terms as all types occurring in
+terms are erased at run-time, but ∀-products can quantify over types
+\textit{and} terms because terms can be erased. Meanwhile, non-dependent
+products (➔ and ➾) can only ``quantify'' over terms because non-dependent type
+quantification does not seem particularly useful. Besides these, Cedilleum
+features type-level functions and applications (with term and type arguments), a
+primitive equality type for untyped terms, and a ``hole'' type whose sole
+purpose is to help programmers writing code when they are not sure how to fill
+in a type or term sub-expression ($\bullet$ generates an immediate error, but
+type-checking continues as usual in order to provide the user with useful feedback.)
+
+We illustrate with another example: what follows is a module stub for
+\textbf{DepCast} defining dependent casts -- intuitively, functions from $a : A$
+to $B\ a$ that are also equal to identity (after erasure, discussed below) --
+where the definitions \texttt{CastE} and \texttt{castE} are incomplete.
+
+\begin{verbatim}
+module DepCast .
+
+CastE ◂ Π A : ★ . (A ➔ ★) ➔ ★ = ● .
+
+castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a = ● .
+\end{verbatim}
+
+\paragraph{Terms}
+
+\paragraph{Erasure}
+\begin{figure}[h]
+  \[
+  \begin{array}{lll}
+    |x| & = & x \\
+    |\star| & = & \star \\
+    |\Box| & = & \Box \\
+    |\beta\ \{t\}| & = & |t|\\
+    |\delta\ t| & = & |t|\\
+    |\chi\ T^? \textbf{-}\ t| & = & |t| \\
+    |\theta\ t\ t'^*| & = & |t|\ |t'^*| \\
+    |\varsigma\ t| & = & |t| \\
+    |t\ t'| & = & |t|\ |t'| \\ 
+    |t\ \mhyph t'| & = & |t| \\
+    |t\ \cdot T| & = & |t| \\
+    |\rho\ t\ \mhyph\ t'| & = & |t'| \\
+    |\abs{\forall}{x}{C}{C'}| & = & \abs{\forall}{x}{|C|}{|C'|}\\
+    |\abs{\Pi}{x}{C}{C'}| & = & \abs{\Pi}{x}{|C|}{|C'|}\\
+    |\abs{\lambda}{u}{T}{t}| & = &  \absu{\lambda}{u}{|t|} \\
+    |\absu{\lambda}{u}{t}| & = &  \absu{\lambda}{u}{|t|} \\
+    |\abs{\lambda}{X}{K}{C}| & = &  \abs{\lambda}{X}{|K|}{|C|} \\
+    |\abs{\Lambda}{x}{C}{t}| & = &  |t| \\ 
+    |\phi\ t\ \mhyph\ t'\ \{t''\}| & = & |t''| \\
+    |[ x = t : T]|\ \mhyph\ t' | & = & (\absu{\lambda}{x}{|t'|})\ |t|\\
+    |[X = T : K]\ \mhyph\ t | & = & |t| \\
+    |\{ t \simeq t' \}|| & = & \{ |t| \simeq |t'| \}
+    \\ |\mu\ t\ motive^?\ \textbf{\{} case^* \textbf{\}}| & = & \mu\ t\
+       \textbf{\{} |case^*| \textbf{\}}
+    \\ |\mu'\ t\ motive^?\ \textbf{\{} case^* \textbf{\}}| & = & \mu'\ t\
+       \textbf{\{} |case|^* \textbf{\}}
+    \\ \\
+    |id\ vararg^* \mapsto t| & = & id\ |vararg|^*\ |t|
+    \\ |\mhyph u| & = & 
+    \\ |\cdot T|  & = &
+  \end{array}
+  \]
+  \caption{Erasure for annotated terms}
+  \label{fig:eraser}
+\end{figure}
+% TODO - convert cases to lam-abstractions?
 
 \end{document}
