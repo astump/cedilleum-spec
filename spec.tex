@@ -14,9 +14,15 @@
 \DeclareUnicodeCharacter{1D48C}{\ensuremath{\kappa}}
 
 % useful macros
+\newcommand{\ann}[2]{#1\! : \! #2}
 \newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
+
+% - type inference
+\newcommand{\decdir}{\vdash_{\delta}}
+\newcommand{\decsyn}{\vdash_{\Uparrow}}
+\newcommand{\decchk}{\vdash_{\Downarrow}}
 
 \begin{document}
 
@@ -43,6 +49,7 @@
       & \textnormal{kind variables}
       \\ x & ::= & id\ |\ u\ |\ X\
       & \textnormal{non-kind variables}
+      \\ y & ::= & x\ |\ 𝒌 & \text{all variables}
     \end{array}
   \]
   \caption{Identifiers}
@@ -74,7 +81,7 @@ any string that would by itself be a legal non-kind identifier.
       \\ & & \textbf{μ'}\ p_s\ p^*
       & \text{auxiliary pattern matching}
       \\ \\ pcase
-      & ::= & u\ u^* \mapsto p
+      & ::= & \textbf{\textbar}\ u\ u^* \mapsto p
     \end{array}
   \]
   \caption{Untyped terms}
@@ -189,9 +196,9 @@ data Vec (A : ★) : Nat ➔ ★ =
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      s
-      & ::= & T & \text{types}
-      \\ & & t & \text{terms}
+      S
+      & ::= & \square & \text{sole super-kind}
+      \\ & & K & \text{kinds}
       \\ C
       & ::= & K & \text{types}
       \\ & & T & \text{types}
@@ -219,7 +226,7 @@ data Vec (A : ★) : Nat ➔ ★ =
          & \text{application to another type}
       \\ & & T\ t
          & \text{application to a term}
-      \\ & & \textbf{\{}\ e\ ≃\ e' \textbf{\}}
+      \\ & & \textbf{\{}\ p\ ≃\ p' \textbf{\}}
          & \textnormal{untyped equality}
       \\ & & \textbf{(}T\textbf{)}
       \\ & & X
@@ -375,9 +382,9 @@ discussed in more detail (and whose purpose will become more apparent) in Sectio
     \\ |[X = T : K]\ \mhyph\ t | & = & |t| 
     \\ |\{ t \simeq t' \}|| & = & \{ |t| \simeq |t'| \}
     \\ |\mu\langle u,X,u',u'' \rangle\ t\ motive^?\ \textbf{\{} case^* \textbf{\}}|
-           & = & \mu\langle u,u',u'' \rangle\ t\ |case^*|
+           & = & \mu\langle u,u',u'' \rangle\ t\ \textbf{\{}|case^*|\textbf{\}}
     \\ |\mu'\ t\ motive^?\ \textbf{\{} case^* \textbf{\}}| & = & \mu'\ t\
-       |case^*|
+       \textbf{\{}|case^*|\textbf{\}}
     \\ \\ |id\ vararg^* \mapsto t| & = & id\ |vararg^*|\ \mapsto |t|
     \\ 
     \\ |\mhyph u| & = & 
@@ -402,15 +409,87 @@ pattern-match case are indeed erased.
     \begin{array}{lll}
       \infer{\Gamma\vdash \star : \Box}{\ }
       & \infer
-        { \Gamma\vdash\abs{\Pi}{x}{t}{t'} : s'}
-        { \Gamma \vdash C : S \quad
-          \Gamma,x:C\vdash C' : S' \quad \textit{Var}(x,s)
+        { \Gamma\vdash\abs{\Pi}{y}{C}{C'} : S'}
+        { \Gamma \vdash C : S
+        \quad
+        \Gamma,y:C\vdash C' : S'
+        \quad \textit{Var}(y,S)
         }
-      & \infer{\Gamma\vdash\abs{\forall}{x}{t}{t'} : \star}{\Gamma \vdash t : s
-        \quad \Gamma,x:t\vdash t' : \star \quad \textit{Var}(x,s)} 
+      & \infer
+        {\Gamma\vdash\abs{\forall}{y}{C}{C'} : \star}
+        {\Gamma \vdash C : S
+        \quad \Gamma,y:C\vdash C' : \star
+        \quad \textit{Var}(y,S)
+        }
+      \\
+      \\ \infer
+      { \Gamma \vdash \{p \simeq p' \} : \star}
+      { FV(p\ p') \subseteq dom(\Gamma) }
+      & \infer
+        { \Gamma \vdash \kappa : \Gamma(\kappa)}
+        { }
+      & \infer
+        { \Gamma \vdash X : \Gamma(X)}
+        { }
+      \\
+      \\ \infer
+      { \Gamma \vdash \abs{\lambda}{x}{C}{T} : \abs{\Pi}{x}{C}{K}}
+      { \Gamma \vdash \abs{\Pi}{x}{C}{K} : \square
+      \quad \Gamma, \ann{x}{C} \vdash T : K
+      }
+      & \infer
+        { \Gamma \vdash T\ \cdot T' : [T'/x] K'}
+        { \Gamma \vdash T : \abs{\Pi}{x}{K}{K'}
+        \quad \Gamma \vdash T' : K}
+      & \infer
+       { \Gamma \vdash T\ t : [t/x] K}
+        { \Gamma \vdash T : \abs{\Pi}{x}{T'}{K}
+        \quad \Gamma \decchk t : T' }
     \end{array}
   \]
-  \caption{Sort-checking for Cedilleum}
+  \caption{Kind and sort checking for Cedilleum}
+\end{figure}
+
+\begin{figure}[h]
+  \[
+    \begin{array}{lll}
+      \infer
+      { \Gamma \decdir u : \Gamma(u)}{}
+      & \infer
+        { \Gamma \decdir \abs{\lambda}{x}{T}{t} : \abs{\Pi}{x}{T}{T'}}
+        { \Gamma \vdash T : K
+        \quad \Gamma, \ann{x}{T} \decdir t : T'}
+      & \infer
+        { \Gamma \decdir \absu{\lambda}{x}{t} : \abs{\Pi}{x}{T}{T'}}
+        { \Gamma, \ann{x}{T} \decdir t : T'}
+      \\
+      \\ \infer
+      { \Gamma \decdir \abs{\Lambda}{x}{C}{t} : \abs{\forall}{x}{C}{T}}
+      { \Gamma \vdash C : S
+      \quad x \notin FV(|t|)
+      \quad \Gamma, \ann{x}{C} \decdir t : T
+      }
+      & \infer
+        { \Gamma \decchk \absu{\Lambda}{x}{t} : \abs{\forall}{x}{C}{T}}
+        { x \notin FV(|t|)
+        \quad \Gamma, \ann{x}{C} \decdir t : T
+        }
+      & \infer
+        { \Gamma \decdir t\ t' : [t'/x]T}
+        { \Gamma \decsyn t : \abs{\Pi}{x}{T'}{T}
+        \quad \Gamma \decchk t' : T'}
+      \\
+      \\ \infer
+      { \Gamma \decdir t\ \cdot T : [T/X]T'}
+      { \Gamma \decsyn t : \abs{\forall}{X}{K}{T'}
+      \quad \Gamma \vdash T : K}
+      & \infer
+        { \Gamma \decdir t\ \mhyph t' : [t'/x]T}
+        { \Gamma \decsyn t : \abs{\forall}{x}{T'}{T}
+        \quad \Gamma \decchk t' : T'}
+    \end{array}
+  \]
+  \caption{Type checking for Cedilleum}
 \end{figure}
 
 % TODO kind-variables... two different rules or Var check?
