@@ -406,7 +406,7 @@ pattern-match case are indeed erased.
 
 \begin{figure}[h]
   \[
-    \begin{array}{lll}
+    \begin{array}{lcr}
       \infer{\Gamma\vdash \star : \Box}{\ }
       & \infer
         { \Gamma\vdash\abs{\Pi}{y}{C}{C'} : S'}
@@ -447,12 +447,12 @@ pattern-match case are indeed erased.
         \quad \Gamma \decchk t : T' }
     \end{array}
   \]
-  \caption{Kind and sort checking for Cedilleum}
+  \caption{Kind and sort checking for Cedilleum \fbox{$\Gamma \vdash C : S$}}
 \end{figure}
 
 \begin{figure}[h]
-  \[
-    \begin{array}{lll}
+  \[ \small
+    \begin{array}{lcr}
       \infer
       { \Gamma \decdir u : \Gamma(u)}{}
       & \infer
@@ -460,8 +460,8 @@ pattern-match case are indeed erased.
         { \Gamma \vdash T : K
         \quad \Gamma, \ann{x}{T} \decdir t : T'}
       & \infer
-        { \Gamma \decdir \absu{\lambda}{x}{t} : \abs{\Pi}{x}{T}{T'}}
-        { \Gamma, \ann{x}{T} \decdir t : T'}
+        { \Gamma \decchk \absu{\lambda}{x}{t} : \abs{\Pi}{x}{T}{T'}}
+        { \Gamma, \ann{x}{T} \decchk t : T'}
       \\
       \\ \infer
       { \Gamma \decdir \abs{\Lambda}{x}{C}{t} : \abs{\forall}{x}{C}{T}}
@@ -487,11 +487,38 @@ pattern-match case are indeed erased.
         { \Gamma \decdir t\ \mhyph t' : [t'/x]T}
         { \Gamma \decsyn t : \abs{\forall}{x}{T'}{T}
         \quad \Gamma \decchk t' : T'}
+      & \infer % conversion... maybe needs to include phi and rho now?
+        { \Gamma \decchk t : T }
+        { \Gamma \decsyn t : T'
+          & |T'| =_{\beta} |T| }
+      \\ \\ \infer
+      { \Gamma \decdir [ id : T = t ]\ \mhyph\ t' : T'}
+      { \Gamma \vdash T : K
+        & \Gamma \decchk t : T
+        & \Gamma, \ann{id = t}{T} \decdir t' : T'}
+      & \infer
+        { \Gamma \decdir [ id = t]\ \mhyph\ t' : T' }
+        { \Gamma \decsyn t : T
+          & \Gamma, \ann{id = t}{T} \decdir t' : T'
+        }
+      & \infer[\footnotemark] % TODO
+        { \Gamma \decdir \rho\ t\ \mhyph\ t' : [t_2/x]\ T}
+        { \Gamma \decsyn t : \{ t_1 \simeq t_2 \}
+          & \Gamma \decsyn t' : [t_1/x]\ T
+        }
+      \\ \\ \infer
+      { \Gamma \decdir [ id : K = T ]\ \mhyph\ t' : T'}
+      { \Gamma \vdash K : \square
+        & \Gamma \vdash T : K
+        & \Gamma, \ann{id = T}{K} \decdir t' : T'}
+      & \infer
+        { \Gamma \decchk \beta \{t\} : \{ t' \simeq t' \}}
+        { \Gamma \vdash \{ t' \simeq t' \} : \star }
     \end{array}
   \]
   \caption{Type checking for Cedilleum}
 \end{figure}
-
+\footnotetext{Where we assume $t$ does not occur anywhere in $T$}
 % TODO kind-variables... two different rules or Var check?
 
 \end{document}
