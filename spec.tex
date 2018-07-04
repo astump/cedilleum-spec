@@ -18,6 +18,7 @@
 \newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
+\newcommand{\indast}[3]{\texttt{Ind } [#1]\ (#2 := #3)}
 
 % - type inference
 \newcommand{\decdir}{\vdash_{\delta}}
@@ -34,6 +35,7 @@
 \maketitle
 
 \section{Syntax}
+\label{sec:syntax}
 
 \paragraph{Identifiers}
 \begin{figure}[h]
@@ -62,7 +64,9 @@ identifiers. We consider all identifiers as coming from two distinct lexical
 modules and definitions, term variables $u$, and type variables $X$) and kind
 identifiers $\kappa$. In Cedilleum source files (as in the parent language Cedille)
 kind variables should be literally prefixed with $\kappa$ -- the suffix can be
-any string that would by itself be a legal non-kind identifier.
+any string that would by itself be a legal non-kind identifier. For example,
+\texttt{myDef} is a legal term / type variable and a legal name for a
+definition, whereas \texttt{𝒌myDeff} is only legal as a kind definition.
 
 \paragraph{Untyped Terms}
 \begin{figure}[h]
@@ -78,7 +82,7 @@ any string that would by itself be a legal non-kind identifier.
       \\ & & \textbf{μ}\langle u_{rec}\ u_{out}\ u_{z} \rangle\ e_s\ \textbf{\{}
              pcase^* \textbf{\}}
       & \text{fixed-point and pattern matching}
-      \\ & & \textbf{μ'}\ p_s\ p^*
+      \\ & & \textbf{μ'}\ p_s\ \textbf{\{}pcase^*\textbf{\}}
       & \text{auxiliary pattern matching}
       \\ \\ pcase
       & ::= & \textbf{\textbar}\ u\ u^* \mapsto p
@@ -195,14 +199,14 @@ data Vec (A : ★) : Nat ➔ ★ =
 \paragraph{Types and Kinds}
 \begin{figure}[h]
   \[
-    \begin{array}{llll}
-      S
+    \begin{array}{rlll}
+      \text{Sorts } S
       & ::= & \square & \text{sole super-kind}
       \\ & & K & \text{kinds}
-      \\ C
+      \\ \text{Classifiers } C
       & ::= & K & \text{types}
       \\ & & T & \text{types}
-      \\ K
+      \\ \text{Kinds } K
       & ::= & \textbf{Π}\ x\ \textbf{:}\ C\ \textbf{.}\ K
       & \textnormal{explicit product}
       \\ & & C\ \textbf{➔}\ K
@@ -211,7 +215,7 @@ data Vec (A : ★) : Nat ➔ ★ =
       & \text{the kind of types that classify terms}
       \\ & & \textbf{(}K\textbf{)}
       \\ 
-      \\ T
+      \\ \text{Types } T
       & ::= & \textbf{Π}\ x\ \textbf{:}\ T\ \textbf{.}\ T
          & \textnormal{explicit product}
       \\ & &  \textbf{∀}\ x\ \textbf{:}\ C\ \textbf{.}\ T
@@ -242,13 +246,11 @@ data Vec (A : ★) : Nat ➔ ★ =
 In Cedilleum, the expression language is stratified into three main ``classes'':
 kinds, types, and terms. Kinds and types are listed in Figure
 \ref{fig:kinds-types} and terms are listed in Figure \ref{fig:ann-terms} along
-with some auxiliary grammatical categories -- $s$ groups terms and types
-together as ``subjects'' resp. of typing and kinding, and $C$ groups types and
-kinds together as classifiers. In both of these figures, the constructs forming
-expressions are listed from lowest to highest precedence -- ``abstractors''
-($\lambda\ \Lambda\ \Pi\ \forall$) bind most loosely and parentheses most
-tightly. Associativity is as-expected, with arrows (➔ ➾) and applications being
-left-associative and abstractors being right-associative.
+with some auxiliary grammatical categories. In both of these figures, the
+constructs forming expressions are listed from lowest to highest precedence --
+``abstractors'' ($\lambda\ \Lambda\ \Pi\ \forall$) bind most loosely and
+parentheses most tightly. Associativity is as-expected, with arrows (➔ ➾) and
+applications being left-associative and abstractors being right-associative.
 
 % TODO cite
 The language of kinds and types is similar to that found in the Calculus of
@@ -283,17 +285,17 @@ CastE ◂ Π A : ★ . (A ➔ ★) ➔ ★ = ● .
 castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a = ● .
 \end{verbatim}
 
-\paragraph{Terms}
+\paragraph{Annotated Terms}
 \begin{figure}[h]
   \[
-    \begin{array}{llll}
-      s
+    \begin{array}{rlll}
+      \text{Subjects } s
       & ::= & t & \text{term}
       \\ & & T & \text{type}
-      \\ t
-      & ::= & \textbf{λ}\, x\ C^?\! \textbf{.}\, t
+      \\ \text{Terms } t
+      & ::= & \textbf{λ}\, x\ class^?\! \textbf{.}\, t
       & \textnormal{normal abstraction}
-      \\ & & \textbf{Λ}\, x\ C^?\! \textbf{.}\, t
+      \\ & & \textbf{Λ}\, x\ class^?\! \textbf{.}\, t
       & \textnormal{erased abstraction}
       \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ t
       & \text{let definitions}
@@ -326,7 +328,7 @@ castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a =
       \\ & & \textbf{(}t\textbf{)}
       \\ & & \bullet
       & \text{hole for incomplete term}
-      \\ case
+      \\ \\ case
       & ::= & \textbf{\textbar}\ id\ vararg^*\ \textbf{↦}\ t
       & \text{pattern-matching cases}
       \\ vararg
@@ -352,7 +354,7 @@ optional classifiers for bound variables, let-bindings, applications $t\ t'$,
 $t\ \mhyph t'$, and $t\ \cdot T$ (resp. to another term, an erased term, or a
 type). In addition to this there are a number of useful operators that will be
 discussed in more detail (and whose purpose will become more apparent) in Section
-\ref{sec:type-system}. 
+\ref{sec:type-system}.
 
 \section{Erasure}
 
@@ -396,12 +398,14 @@ discussed in more detail (and whose purpose will become more apparent) in Sectio
 \end{figure}
 
 The definition of the erasure function given in Figure \ref{fig:eraser} takes
-the annotated terms from Figures \ref{fig:kinds-types} \ref{fig:ann-terms} to
+the annotated terms from Figures \ref{fig:kinds-types} and \ref{fig:ann-terms} to
 the untyped terms of Figure \ref{fig:pure-terms}. The last two equations
 indicate that any type or erased arguments in the the zero or more $vararg$'s of
-pattern-match case are indeed erased.
+pattern-match case are indeed erased. The additional constructs introduced in
+the annotated term language such as β, φ, and ρ, are all erased to the language
+of pure terms.
 
-\section{Type System}
+\section{Type System (sans Inductive Datatypes)}
 \label{sec:type-system}
 
 \begin{figure}[h]
@@ -413,13 +417,13 @@ pattern-match case are indeed erased.
         { \Gamma \vdash C : S
         \quad
         \Gamma,y:C\vdash C' : S'
-        \quad \textit{Var}(y,S)
+%        \quad \textit{Var}(y,S)
         }
       & \infer
         {\Gamma\vdash\abs{\forall}{y}{C}{C'} : \star}
         {\Gamma \vdash C : S
         \quad \Gamma,y:C\vdash C' : \star
-        \quad \textit{Var}(y,S)
+%        \quad \textit{Var}(y,S)
         }
       \\
       \\ \infer
@@ -447,7 +451,8 @@ pattern-match case are indeed erased.
         \quad \Gamma \decchk t : T' }
     \end{array}
   \]
-  \caption{Kind and sort checking for Cedilleum \fbox{$\Gamma \vdash C : S$}}
+  \caption{Sort checking \fbox{$\Gamma \vdash C : S$}}
+  \label{fig:sort-checking}
 \end{figure}
 
 \begin{figure}[h]
@@ -533,12 +538,92 @@ pattern-match case are indeed erased.
         & \Gamma \vdash_? t'^* : \texttt{??} }
     \end{array}
   \]
-  \caption{Type checking for Cedilleum}
+  \caption{Type checking \fbox{$\Gamma \decdir s : C$} (sans inductive datatypes)}
+  \label{fig:type-checking}
 \end{figure}
 \footnotetext{Where we assume $t$ does not occur anywhere in $T$}
 \footnotetext{Where $\texttt{tt} = \absu{\lambda}{x}{\absu{\lambda}{y}{x}}$ and
   $\texttt{ff} = \absu{\lambda}{x}{\absu{\lambda}{y}{y}}$}
 % TODO kind-variables... two different rules or Var check?
 % TODO equality, now that it can have rho, phi
+
+The inference rules for classifying expressions in Cedilleum are stratified into
+two judgments. Figure \ref{fig:sort-checking} gives the uni-directional rules
+for ensuring types are well-kinded and kinds are well-formed. Future versions of
+Cedilleum will allow for bidirectional checking for both typing \textit{and}
+sorting, allowing for a unification of these two figures. Most of these rules
+are similar to what one would expect from the Calculus of Implicit
+Constructions, so we focus on the typing rules unique to Cedilleum.
+
+The typing rule for ρ shows that ρ is a primitive for rewriting by an (untyped)
+equality. If $t$ is an expression that synthesizes a proof that two terms $t_1$
+and $t_2$ are equal, and $t'$ is an expression synthesizing type $[t_1/x]\ T$
+(where, as per the footnote, $t_1$ does not occur in $T$), then we may
+essentially rewrite its type to $[t_2/x]\ T$. The rule for β is reflexivity for
+equality -- it witnesses that a term is equal to itself, provided that the type
+of the equality is well-formed. The rule for ς is symmetry for equality.
+Finally, φ acts as a ``casting'' primitive: the rule for its use says that if
+some term $t$ witnesses that two terms $t_1$ and $t_2$ are equal, and $t_1$ has
+been judged to have type $T$, then intuitively $t_2$ can also be judged to have
+type $T$. (This intuition is justified by the erasure rule for φ -- the
+expression erases to $|t_2|$). The last rule involving equality is for δ, which
+witnesses the logical principle \textit{ex falso quodlibet} -- if a certain
+impossible equation is proved (namely that the two Church-encoded booleans
+\texttt{tt} and \texttt{ff} are equal), then \textit{any} type desired is
+inhabited.
+
+The two remaining primitives are not essential to the theory but are useful
+additions for programmers. The rule for χ allows the user to provide an
+explicit top-level annotation for a term, and θ embodies ``elimination with a
+motive'', using the expected type of an application to infer some type
+arguments. (TODO)
+
+\section{Inductive Datatypes}
+
+Before we can provide the typing rules for introduction and usage of inductive
+datatypes, some auxiliary definitions must be given. The syntax for these
+borrows heavily from the convention of the Coq
+documentation\footnote{https://coq.inria.fr/refman/language/cic.html\#inductive-definitions}.
+
+The production $defDataType$ gives the concrete syntax for datatype definitions,
+but it is not a very useful notation for representing one in the abstract syntax
+tree. In our typing rules we will instead use the notation
+$\indast{p}{\Gamma_I}{\Gamma_C}$ where
+
+\begin{enumerate}
+  \item $\Gamma_I$ consists of \textit{one} type variable with an associated
+    kind, representing the inductive type being defined. We will frequently
+    refer to the sole type variable in this context as $I$.
+
+    In particular, note that in the current version of Cedilleum mutual inductive
+    datatypes will not be definable.
+  \item $\Gamma_C$ consists of term variables representing the constructors.
+  \item $p$ represents the number of parameters to the inductive data-type definition.
+\end{enumerate}
+
+For example, consider the \texttt{List} and \texttt{Vec} definitions from
+\ref{sec:syntax}. These will be represented in the AST as
+\\ \\
+\[\indast{1}{List : ★ ➔ ★}
+{\begin{array}{lcl}
+   nil & : & ∀ A : ★ . List \cdot A
+   \\ cons & : & ∀ A : ★ . A ➔ List \cdot A ➔ List \cdot A
+ \end{array}
+}\] and
+\\\\
+\[\indast{1}{Vec : ★ ➔ Nat ➔ ★}
+{\begin{array}{lcl}
+   vnil & : & ∀ A : ★ . Vec \cdot A\ Z
+   \\ vcons & : & ∀ A : ★ . ∀ n : Nat . A ➔ Vec \cdot A\ n ➔ Vec \cdot A\ (S\ n)
+ \end{array}
+}\]
+% $\indast{1}{List : ★ ➔ ★}{(nil : ∀ A : ★ . List \cdot A, cons : ∀ A : ★ . A ➔
+%   List \cdot A ➔ List \cdot A)}$ and
+% \\ \\
+% $\indast{1}{Vec : ★ ➔ Nat ➔ ★}{(vnil : ∀ A : ★ . Vec \cdot A\ Z, vcons : ∀ A : ★
+%   . ∀ n : Nat . A ➔ Vec \cdot A\ n ➔ Vec \cdot A\ (S\ n))}$
+
+% $\indast{1}{\texttt{List} : ★ ➔
+% ★}{\ann{\texttt{nil}}{\abs{∀}{A}{★}{List \cdot A}}}$ and % $\indast{1}{Vec : ★ ➔ Nat ➔ ★}{}$
 
 \end{document}
