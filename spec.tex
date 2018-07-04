@@ -291,9 +291,9 @@ castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a =
       & ::= & t & \text{term}
       \\ & & T & \text{type}
       \\ t
-      & ::= & \textbf{λ}\, x\ class^?\! \textbf{.}\, t
+      & ::= & \textbf{λ}\, x\ C^?\! \textbf{.}\, t
       & \textnormal{normal abstraction}
-      \\ & & \textbf{Λ}\, x\ class^?\! \textbf{.}\, t
+      \\ & & \textbf{Λ}\, x\ C^?\! \textbf{.}\, t
       & \textnormal{erased abstraction}
       \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ t
       & \text{let definitions}
@@ -301,7 +301,7 @@ castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a =
       & \text{equality elimination by rewriting}
       \\ & & \textbf{φ}\ t\ \textbf{-}\ t'\ \textbf{\{} t'' \textbf{\}}
       & \text{type cast}
-      \\ & & \textbf{χ}\ T^?\ \textbf{-}\ t
+      \\ & & \textbf{χ}\ T\ \textbf{-}\ t
       & \text{check a term against a type}
       \\ & & \textbf{δ}\ \textbf{-}\ t
       & \text{ex falso quodlibet}
@@ -405,7 +405,7 @@ pattern-match case are indeed erased.
 \label{sec:type-system}
 
 \begin{figure}[h]
-  \[
+  \[ \small
     \begin{array}{lcr}
       \infer{\Gamma\vdash \star : \Box}{\ }
       & \infer
@@ -514,11 +514,31 @@ pattern-match case are indeed erased.
       & \infer
         { \Gamma \decchk \beta \{t\} : \{ t' \simeq t' \}}
         { \Gamma \vdash \{ t' \simeq t' \} : \star }
+      & \infer
+        { \Gamma \decdir \varsigma\ t : \{ t_2 \simeq t_1 \} }
+        { \Gamma \decdir t : \{ t_1 \simeq t_2 \}}
+      \\ \\ \infer
+      { \Gamma \decdir \phi\ t\ \mhyph\ t_1\ \{t_2\} : T}
+      { \Gamma \decchk t : \{ |t_1| \simeq |t_2| \}
+        & \Gamma \decdir t_1 : T}
+      & \infer
+        { \Gamma \decsyn \chi\ T\ \mhyph\ t : T }
+        { \Gamma \decchk t : T }
+      & \infer[\footnotemark]
+        { \Gamma \decchk \delta\ \mhyph\ t : T }
+        { \Gamma \decchk t : \{ \texttt{tt}\ \simeq\ \texttt{ff} \}}
+      \\ \\ \infer
+      { \Gamma \decchk \theta\ t\ t'^* : T }
+      { \Gamma \decsyn t : \texttt{??}
+        & \Gamma \vdash_? t'^* : \texttt{??} }
     \end{array}
   \]
   \caption{Type checking for Cedilleum}
 \end{figure}
 \footnotetext{Where we assume $t$ does not occur anywhere in $T$}
+\footnotetext{Where $\texttt{tt} = \absu{\lambda}{x}{\absu{\lambda}{y}{x}}$ and
+  $\texttt{ff} = \absu{\lambda}{x}{\absu{\lambda}{y}{y}}$}
 % TODO kind-variables... two different rules or Var check?
+% TODO equality, now that it can have rho, phi
 
 \end{document}
