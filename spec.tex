@@ -582,26 +582,15 @@ arguments. (TODO)
 
 Before we can provide the typing rules for introduction and usage of inductive
 datatypes, some auxiliary definitions must be given. The syntax for these
-borrows heavily from the convention of the Coq
+borrows heavily from the conventions of the Coq
 documentation\footnote{https://coq.inria.fr/refman/language/cic.html\#inductive-definitions}.
-
-The production $defDataType$ gives the concrete syntax for datatype definitions,
+To begin with, the production $defDataType$ gives the concrete syntax for datatype definitions,
 but it is not a very useful notation for representing one in the abstract syntax
 tree. In our typing rules we will instead use the notation
-$\indast{p}{\Gamma_I}{\Gamma_C}$ where
-
-\begin{enumerate}
-  \item $\Gamma_I$ consists of \textit{one} type variable with an associated
-    kind, representing the inductive type being defined. We will frequently
-    refer to the sole type variable in this context as $I$.
-
-    In particular, note that in the current version of Cedilleum mutual inductive
-    datatypes will not be definable.
-  \item $\Gamma_C$ consists of term variables representing the constructors.
-  \item $p$ represents the number of parameters to the inductive data-type definition.
-\end{enumerate}
-
-For example, consider the \texttt{List} and \texttt{Vec} definitions from
+$\indast{p}{\Gamma_I}{\Gamma_C}$ where $\Gamma_I$ is a context binding
+\textit{one} type variable $I$ (representing the inductive datatype being defined),
+$\Gamma_C$ represents the data constructors of type $I$, and $p$ is the number
+of parameters to $I$. For example, consider the \texttt{List} and \texttt{Vec} definitions from
 \ref{sec:syntax}. These will be represented in the AST as
 \\ \\
 \[\indast{1}{List : ★ ➔ ★}
@@ -610,20 +599,62 @@ For example, consider the \texttt{List} and \texttt{Vec} definitions from
    \\ cons & : & ∀ A : ★ . A ➔ List \cdot A ➔ List \cdot A
  \end{array}
 }\] and
-\\\\
+\\
 \[\indast{1}{Vec : ★ ➔ Nat ➔ ★}
 {\begin{array}{lcl}
    vnil & : & ∀ A : ★ . Vec \cdot A\ Z
    \\ vcons & : & ∀ A : ★ . ∀ n : Nat . A ➔ Vec \cdot A\ n ➔ Vec \cdot A\ (S\ n)
  \end{array}
 }\]
-% $\indast{1}{List : ★ ➔ ★}{(nil : ∀ A : ★ . List \cdot A, cons : ∀ A : ★ . A ➔
-%   List \cdot A ➔ List \cdot A)}$ and
-% \\ \\
-% $\indast{1}{Vec : ★ ➔ Nat ➔ ★}{(vnil : ∀ A : ★ . Vec \cdot A\ Z, vcons : ∀ A : ★
-%   . ∀ n : Nat . A ➔ Vec \cdot A\ n ➔ Vec \cdot A\ (S\ n))}$
 
-% $\indast{1}{\texttt{List} : ★ ➔
-% ★}{\ann{\texttt{nil}}{\abs{∀}{A}{★}{List \cdot A}}}$ and % $\indast{1}{Vec : ★ ➔ Nat ➔ ★}{}$
+For an inductive datatype definition to be well-formed, it must satisfy the
+following conditions (each of which is explained in more detail in the following
+subsections):
+
+\begin{itemize}
+\item The kind of $I$ must be (at least) a \textit{p-arity of kind ★}.
+\item The types of each $id \in \Gamma_C$ must be \textit{types of constructors
+    of $I$}
+\item The definition must satisfy the \textit{non-strict} positivity condition.
+\end{itemize}
+
+\paragraph{$p$-arity}
+
+A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma_P}{K'}$,
+where $|\Gamma_P| = p$ and $\Pi\ \Gamma_P$ represents the quantification of all
+term and type variables in $\Gamma_C$. For an inductive definition
+$\indast{p}{\Gamma_I}{\Gamma_C}$, requiring that the kind of $I$ is a $p$-arity
+of ★ ensures that $I$ \textit{really does have} $p$ parameters.
+
+\paragraph{Types of Constructors}
+
+$T$ is a \textit{type of a constructor of $I$} if
+\begin{itemize}
+\item it is $I\ s_1 ... s_n$
+\item it can be written as $\abs{\forall}{s}{C}{T}$ or $\abs{\Pi}{s}{C}{T}$,
+  where (in either case) $T$ is a type of a constructor of $I$
+\end{itemize}
+
+\paragraph{Positivity condition}
+The positivity condition is defined in two parts: the positivity condition of
+a type $T$ of a constructor of $I$, and the positive occurence of $I$ in $T$.
+
+We say that a type $T$ of a constructor $I$ satisfies the positivity condition
+when
+
+\begin{itemize}
+\item $T$ is $I\ s_1... s_n$ and $I$ does not occur anywhere in $s_1...s_n$
+\item $T$ is $\abs{\forall}{s}{C}{T'}$ or $\abs{\Pi}{s}{C}{T'}$, $T'$ satisfies
+  the positivity condition for $I$, and $I$ occurs \textit{only} positively in $C$ 
+\end{itemize}
+
+We say that $I$ occurs only positively in $T$ when
+\begin{itemize}
+\item $I$ does not occur in $T$
+\item $T$ is of the form $I\ s_1 ... s_n$ and $I$ does not occur in $s_1 ...
+  s_n$
+\item $T$ is of the form $\abs{\forall}{s}{C}{T'}$ or $\abs{\Pi}{s}{C}{T'}$, $I$
+  occurs only positively in $T'$, and $I$ \textit{does not} occur positively in $C$
+\end{itemize}
 
 \end{document}
