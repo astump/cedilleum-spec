@@ -19,6 +19,8 @@
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
 \newcommand{\indast}[3]{\texttt{Ind } [#1]\ (#2 := #3)}
+\newcommand{\lowerc}[1]{\lfloor {#1} \rfloor}
+\newcommand{\vars}[1]{{\overline{#1}}}
 
 % - type inference
 \newcommand{\decdir}{\vdash_{\delta}}
@@ -629,11 +631,12 @@ subsections):
 \paragraph{$p$-arity}
 
 A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma_P}{K'}$ for
-some $\Gamma_P$ and $K'$, where $|\Gamma_P| = p$ and $\Pi\ \Gamma_P$ represents
-the quantification of all term and type variables in $\Gamma_P$. For an
-inductive definition $\indast{p}{\Gamma_I}{\Gamma_C}$, requiring that the kind
-of $I$ is a $p$-arity of ★ ensures that $I$ \textit{really does have} $p$
-parameters.
+some $\Gamma_P$ and $K'$, where $|\Gamma_P| = p$ and $\Pi\,\Gamma_P$ represents
+the explicit quantification of all term and type variables in $\Gamma_P$
+(similarly, $\forall\, \Gamma_P$ represents the \textit{implicit} quantification
+of these variables). For an inductive definition
+$\indast{p}{\Gamma_I}{\Gamma_C}$, requiring that the kind of $I$ is a $p$-arity
+of ★ ensures that $I$ \textit{really does have} $p$ parameters.
 
 \paragraph{Types of Constructors}
 
@@ -670,7 +673,7 @@ when
 Let $\Gamma_P,\Gamma_I,$ and $\Gamma_C$ be contexts such that $\Gamma_I$
 associates a single type-variable $I$ to kind $\absu{\Pi}{\Gamma_P}{K_I}$ and
 $\Gamma_c$ associates term variables $c_1 ... c_n$ with corresponding types
-$\absu{\forall}{\Gamma_P}{T_{1}}...\absu{\forall}{\Gamma_P}{T_{n}}$. Then the
+$\absu{\forall}{\Gamma_P}{T_{1}},...\absu{\forall}{\Gamma_P}{T_{n}}$. Then the
 rule given in Figure \ref{fig:inductive-intro} states when an inductive datatype
 definition may be introduced, provided that the following side conditions hold:
 
@@ -706,12 +709,38 @@ definition may be introduced, provided that the following side conditions hold:
       \infer
       { \Gamma \vdash I : \Gamma_I(I) }
       { }
-      & \infer
-        { \Gamma \decdir }
-        { }
-      \\ \\ \infer
+      &  \infer
         { \Gamma \decdir c : \Gamma_C(c) }
         { }
+    \end{array}
+    \] \par\medskip \[
+    \begin{array}{c}
+      \infer
+      { \Gamma,\Gamma_{\mu} \decdir
+        \mumat
+        {t\ @\absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \lowerc{\Gamma_P}\
+         \lowerc{\Gamma_D}}{T}}}
+        {(|\ c_i\ \lowerc{\Gamma_{A_i}} \mapsto t_i)}
+        : [\vars{s}/\lowerc{\Gamma_D},t/x]\ T
+        % \mu'\ t\ @
+      % \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \lowerc{\Gamma_P}\
+      % \lowerc{\Gamma_D}}{T}} : [\vars{s}/\lowerc{\Gamma_D},t/x]\ T
+      }
+      {
+      \begin{array}{c}
+      \begin{array}{lr}
+        \Gamma \decsyn t : I\ \lowerc{\Gamma_P}\ \vars{s}
+        & \Gamma_{\mu}(I)\!=\!\indast{\Gamma_P}{\Gamma_I}{\Gamma_C},|\Gamma_C|=n
+        \\ \\ \Gamma,\Gamma_D,\ann{x}{I\ \lowerc{\Gamma_P}\ \lowerc{\Gamma_D}}
+          \vdash T : ★
+        & (c_i \in \Gamma_C \text{ and } \Gamma \decsyn c_i\ \lowerc{\Gamma_P}
+          \lowerc{\Gamma_{A_i}} : I\ \lowerc{\Gamma_P}\ \vars{s_i})_{i=1..n}
+      \end{array}
+        \\ \\ (\Gamma,\Gamma_{A_i} \vdash t_i :
+        [\vars{s_i}/\lowerc{\Gamma_D},(c_i\ \lowerc{\Gamma_P}\
+        \lowerc{\Gamma_{A_i}})/x]\ P)_{i=1..n}
+      \end{array}
+      }
     \end{array}
   \]
 \end{figure}
