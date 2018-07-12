@@ -631,6 +631,28 @@ subsections):
 
 \subsection{Auxiliary Definitions}
 
+\paragraph{Contexts}
+To ease the notational burden, we will introduce some conventions for writing
+contexts within terms and types.
+
+\begin{itemize}
+\item We write $\lambda\,\Gamma$, $\Lambda\,\Gamma$, $\forall\, \Gamma$, and
+  $\Pi\, \Gamma$ to indicate some form of abstraction over each variable in
+  $\Gamma$. For example, if $\Gamma = \ann{x_1}{T_1},\ann{x_2}{T_2}$ then
+  $\absu{\lambda}{\Gamma}{t} =
+  \abs{\lambda}{x_1}{T_1}{\abs{\lambda}{x_2}{T_2}{t}}$
+\item $\lenc{\Gamma}$ denotes the length of $\Gamma$ (the number of variables it
+  binds)
+\item $\lowerc{\Gamma}$ indicates converting $\Gamma$ to a sequence of variable
+  arguments. When given as arguments to some expression $t$ whose type $T$ is
+  known, it is assumed that each variable in the sequence is given with the
+  right ``flavor'' of application (type, explicit, erased).
+\item $\Gamma_{\mu}$ is a specially designated context tracking both global
+  inductive datatype definitions as well local ``abstracted'' versions of these
+  for uses of $\mu$ (see further below).
+\end{itemize}
+
+
 \paragraph{$p$-arity}
 
 A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma_P}{K'}$ for
@@ -672,7 +694,45 @@ when
 \end{itemize}
 
 \paragraph{Well-formed patterns}
-TODO: erasure, exhaustiveness, non-overlapping
+% TODO: erasure, exhaustiveness, non-overlapping
+Operators $\mu$ and $\mu'$ both take a sequence of \textit{cases} as their last
+argument, with each case of the form $|\ c\ \lowerc{\Gamma_A} \mapsto t$. Like
+with inductive data-type definitions, this is a somewhat inconvenient notation,
+so in the AST we will represent uses of $\mu$ and $\mu'$ more compactly. Given
+an inductive datatype definition $\indast{\Gamma_P}{\Gamma_I}{\Gamma_c}$ for
+type $I$, the expression $\mumat{t\ @P}{(|\ c_i\ \lowerc{\Gamma_{A_i}} \mapsto
+  t_i)_{i=1..\lenc{\Gamma_c}}}$ will be written as
+$\mu'(t,P,(\absu{\lambda\Lambda}{\Gamma_{A_i}}{f_i})_{i=1..\lowerc{\Gamma_C}})$
+% TODO erasure noation!
+
+The
+\textit{pattern} of the case is $c\ \vars{x}$. Given some (well-formed)
+inductive datatype definition $\indast{\Gamma_P}{\Gamma_I}{\Gamma_C}$ of some
+type $I$, we say that some pattern is well-formed ($WF\mhyph Pat(I, c\ \vars{x}, \Gamma_A)$) when
+
+\begin{itemize}
+\item $c$ is a data constructor of $I$: $c \in \Gamma_c$
+\item $\Gamma_A$ is a context binding $\vars{x}$ to the appropriate types:
+  $\lowerc{\Gamma_A} = \vars{x}$
+  % $\Gamma_I,\Gamma_P,\Gamma_C,\Gamma_A \decsyn c\
+  % \lowerc{\Gamma_P}\ \vars{x} : I\ \lowerc{\Gamma_P}\ \vars{s}$, for some
+  % $\vars{s}$
+\item $\vars{x}$ matches the shape of the type $T$ of $c\ \lowerc{\Gamma_c}$ -- that
+  is, not only does it contain an argument for each quantification in $T$, but
+  each argument is given erased / unerased according to the corresponding
+  quantifiers in $T$.
+\end{itemize}
+
+We furthermore say that a set of patters is well-formed ($WF\mhyph Pats(I, (c\
+\vars{x}_i, \Gamma_{A_i})_{i=1..\lenc{\Gamma_C}})$) when
+
+\begin{itemize}
+\item Each pattern is well-formed: $WF\mhyph Pat(I,c_i\ \vars{x}_i,
+  \Gamma_{A_i})$
+\item The constructors in the patterns are distinct: for all $i,j$, $c_i = c_j$
+  means $i = j$
+\end{itemize}
+
 
 \subsection{Well-formed inductive definitions}
 
@@ -738,9 +798,10 @@ definition may be introduced, provided that the following side conditions hold:
         \Gamma \decsyn t : I\ \lowerc{\Gamma_P}\ \vars{s}
         & \Gamma_{\mu}(I)\!=\!\indast{\Gamma_P}{\Gamma_I}{\Gamma_C},\lenc{\Gamma_C}=n
         \\ \\ \Gamma,\Gamma_D,\ann{x}{I\ \lowerc{\Gamma_P}\ \lowerc{\Gamma_D}}
-          \vdash T : ★
-        & (c_i \in \Gamma_C \text{ and } \Gamma \decsyn c_i\ \lowerc{\Gamma_P}
-          \lowerc{\Gamma_{A_i}} : I\ \lowerc{\Gamma_P}\ \vars{s_i})_{i=1..n}
+        \vdash T : ★
+        & WF\mhyph Pats(I, (c_i\ \lowerc{\Gamma_{A_i}}, \Gamma_{A_i})_{i=1..n})
+        % & (c_i \in \Gamma_C \text{ and } \Gamma \decsyn c_i\ \lowerc{\Gamma_P}
+        %   \lowerc{\Gamma_{A_i}} : I\ \lowerc{\Gamma_P}\ \vars{s_i})_{i=1..n}
       \end{array}
         \\ \\ (\Gamma,\Gamma_{A_i} \vdash t_i :
         [\vars{s_i}/\lowerc{\Gamma_D},(c_i\ \lowerc{\Gamma_P}\
