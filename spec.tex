@@ -193,13 +193,23 @@ then an identifier and type is given. As an example, consider the following two
 definitions for lists and vectors (length-indexed lists).
 
 \begin{verbatim}
+data Bool : ★ =
+  | tt : Bool
+  | ff : Bool
+  .
+
+data Nat : ★ =
+  | zero : Nat
+  | suc  : Nat ➔ Nat
+  .
+
 data List (A : ★) : ★ =
   | nil  : List
   | cons : A ➔ List ➔ List
   .
 data Vec (A : ★) : Nat ➔ ★ =
-  | vnil  : Vec Z
-  | vcons : ∀ n : Nat . A ➔ Vec n ➔ Vec (S n)
+  | vnil  : ∀ n : Nat . {n ≃ Z} ➾ Vec · A n
+  | vcons : ∀ n : Nat . ∀ m : Nat . A ➔ Vec n ➔ { m ≃ S n} ➾ Vec m
   .
 \end{verbatim}
 
@@ -359,9 +369,26 @@ castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a =
 Terms can be explicit and implicit functions (resp. indicated by λ and Λ) with
 optional classifiers for bound variables, let-bindings, applications $t\ t'$,
 $t\ \mhyph t'$, and $t\ \cdot T$ (resp. to another term, an erased term, or a
-type). In addition to this there are a number of useful operators that will be
-discussed in more detail (and whose purpose will become more apparent) in Section
-\ref{sec:type-system}.
+type). In addition to this there are a number of useful operators for
+equaltional reasoning, type casting, providing annotations, and pattern
+matching. Each operator will be discussed in more detail in Section
+\ref{sec:type-system}, but a few concrete programs in Cedilleum are given below
+merely to give a better idea of the syntax of the language.
+
+\begin{verbatim}
+isvnil : ∀ A : ★ . ∀ n : Nat . Vec · A n ➔ Bool
+       = Λ A . Λ n . λ xs .
+           μ' xs @(Λ n . λ xs : Bool)
+              { | vnil -n -eq ↦ tt
+                | vcons -n -m x xs -eq ↦ ff
+              }
+vlength : ∀ A : ★ . ∀ n : Nat . Vec · A n ➔ Nat
+        = Λ A . Λ n . λ xs .
+            μ len . xs @(Λ n . λ x . Nat)
+              { | vnil -n -eq ↦ zero
+                | vcons -n -m x xs -eq ↦ suc (len -n xs)
+              }
+\end{verbatim}
 
 \section{Erasure}
 
@@ -629,6 +656,43 @@ subsections):
 \item The definition must satisfy the \textit{non-strict} positivity condition.
 \end{itemize}
 
+Similarly, the notation in the grammar of Cedilleum $\mu'$ and $\mu$ for pattern
+matching is inconvenient, and we will represent them in the AST as resp.
+$\mu'(t,P,t_{i=1..n})$ and
+$\mu(x_{\text{rec}},I',x_{\text{to}},t,P,t_{i=1..n})$. Translation from the form
+given in the grammar to this form is discussed in detail below, but is as
+expected. In particular, we enforce that patterns are exhaustive and
+non-overlapping. For example, consider the pattern-matches given in the code listings
+for \texttt{isvnil} and \texttt{vlength} above. These would be translated into
+the AST as
+\\ \\
+\[
+  \mu'(xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Bool}},
+  \begin{array}{l}
+    \absu{\Lambda}{n}{\absu{\Lambda}{eq}{tt}}
+    \\ \absu{\Lambda}{n}{\absu{\Lambda}{m}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\absu{\Lambda}{eq}{ff}}}}}
+  \end{array}
+  )
+\] and
+\[ \mu(len, Vec/len, x_{\text{to-}Vec},xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Nat}},
+  \begin{array}{l}
+    \absu{\Lambda}{n}{\absu{\Lambda}{eq}{zero}}
+    \\ \absu{\Lambda}{n}{\absu{\Lambda}{m}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\absu{\Lambda}{eq}{suc\
+    (len\ \mhyph n\ xs)}}}}}
+  \end{array})
+\]
+
+For a pattern construct ($\mu$ or $\mu'$) in the AST to be well-formed, it must satisfy the
+following conditions (each of which is, again, explained in more detail below):
+
+\begin{itemize}
+\item The motive $P$ must be well-kinded
+\item $P$ must be a legal motive to be used in eliminating the inductive type
+  $I$ of the scrutinee $t$
+\item Each case $t_i$ must be in a bijection of the $n$ constructors
+  $\Gamma_{\text{C}}$ of $I$
+\end{itemize}
+
 \subsection{Auxiliary Definitions}
 
 \paragraph{Contexts}
@@ -643,24 +707,28 @@ contexts within terms and types.
   \abs{\lambda}{x_1}{T_1}{\abs{\lambda}{x_2}{T_2}{t}}$
 \item $\lenc{\Gamma}$ denotes the length of $\Gamma$ (the number of variables it
   binds)
-\item $\lowerc{\Gamma}$ indicates converting $\Gamma$ to a sequence of variable
-  arguments. When given as arguments to some expression $t$ whose type $T$ is
-  known, it is assumed that each variable in the sequence is given with the
-  right ``flavor'' of application (type, explicit, erased).
-\item $\Gamma_{\mu}$ is a specially designated context tracking both global
-  inductive datatype definitions as well local ``abstracted'' versions of these
-  for uses of $\mu$ (see further below).
-\end{itemize}
+\item We write $s\ \Gamma$ to indicate the sequence of variable arguments in
+  $\Gamma$ given as arguments to $s$.
 
+  Since in Cedilleum there are three flavors of applications (to a type, to an
+  erased term, and to an unerased term), we will only us this notion when the type
+  or kind of $s$ is known, which is sufficient to disambiguate the what flavor of
+  application is intended for each particular binder in $\Gamma$. For example,
+  if $s$ has type
+  $\abs{\forall}{X}{★}{\abs{\forall}{x}{X}{\abs{\Pi}{x'}{X}{X}}}$ and $\Gamma =
+  \ann{X}{★},\ann{x}{X},\ann{x'}{X}$ then $s\ \Gamma = s\ \cdot X\ \mhyph x\ x'$
+\item $\Gamma_{\text{Ind}}$ and $\Gamma'_{\text{Ind}}$ are notations we will use
+  for a specially designated associating type variables with both global
+  (``concrete'') and local (``abstracted'') inductive data-type declarations.
+  The purpose of this latter sort of declaration is to enable type-guided
+  termination of definitions using fixpoints (see below.)
+\end{itemize}
 
 \paragraph{$p$-arity}
 
 A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma_P}{K'}$ for
-some $\Gamma_P$ and $K'$, where $\lenc{\Gamma_p} = p$ and $\Pi\,\Gamma_P$ represents
-the explicit quantification of all term and type variables in $\Gamma_P$
-(similarly, $\forall\, \Gamma_P$ represents the \textit{implicit} quantification
-of these variables). For an inductive definition
-$\indast{p}{\Gamma_I}{\Gamma_C}$, requiring that the kind of $I$ is a $p$-arity
+some $\Gamma_P$ and $K'$, where $\lenc{\Gamma_p} = p$. For an inductive definition
+$\indast{p}{\Gamma_I}{\Gamma_C}$, requiring that the kind $\Gamma_{I}(I)$ is a $p$-arity
 of ★ ensures that $I$ \textit{really does have} $p$ parameters.
 
 \paragraph{Types of Constructors}
@@ -693,45 +761,45 @@ when
   occurs only positively in $T'$, and $I$ \textit{does not} occur positively in $C$
 \end{itemize}
 
-\paragraph{Well-formed patterns}
-% TODO: erasure, exhaustiveness, non-overlapping
-Operators $\mu$ and $\mu'$ both take a sequence of \textit{cases} as their last
-argument, with each case of the form $|\ c\ \lowerc{\Gamma_A} \mapsto t$. Like
-with inductive data-type definitions, this is a somewhat inconvenient notation,
-so in the AST we will represent uses of $\mu$ and $\mu'$ more compactly. Given
-an inductive datatype definition $\indast{\Gamma_P}{\Gamma_I}{\Gamma_c}$ for
-type $I$, the expression $\mumat{t\ @P}{(|\ c_i\ \lowerc{\Gamma_{A_i}} \mapsto
-  t_i)_{i=1..\lenc{\Gamma_c}}}$ will be written as
-$\mu'(t,P,(\absu{\lambda\Lambda}{\Gamma_{A_i}}{f_i})_{i=1..\lowerc{\Gamma_C}})$
-% TODO erasure noation!
+% \paragraph{Well-formed patterns}
+% % TODO: erasure, exhaustiveness, non-overlapping
+% Operators $\mu$ and $\mu'$ both take a sequence of \textit{cases} as their last
+% argument, with each case of the form $|\ c\ \lowerc{\Gamma_A} \mapsto t$. Like
+% with inductive data-type definitions, this is a somewhat inconvenient notation,
+% so in the AST we will represent uses of $\mu$ and $\mu'$ more compactly. Given
+% an inductive datatype definition $\indast{\Gamma_P}{\Gamma_I}{\Gamma_c}$ for
+% type $I$, the expression $\mumat{t\ @P}{(|\ c_i\ \lowerc{\Gamma_{A_i}} \mapsto
+%   t_i)_{i=1..\lenc{\Gamma_c}}}$ will be written as
+% $\mu'(t,P,(\absu{\lambda\Lambda}{\Gamma_{A_i}}{f_i})_{i=1..\lowerc{\Gamma_C}})$
+% % TODO erasure noation!
 
-The
-\textit{pattern} of the case is $c\ \vars{x}$. Given some (well-formed)
-inductive datatype definition $\indast{\Gamma_P}{\Gamma_I}{\Gamma_C}$ of some
-type $I$, we say that some pattern is well-formed ($WF\mhyph Pat(I, c\ \vars{x}, \Gamma_A)$) when
+% The
+% \textit{pattern} of the case is $c\ \vars{x}$. Given some (well-formed)
+% inductive datatype definition $\indast{\Gamma_P}{\Gamma_I}{\Gamma_C}$ of some
+% type $I$, we say that some pattern is well-formed ($WF\mhyph Pat(I, c\ \vars{x}, \Gamma_A)$) when
 
-\begin{itemize}
-\item $c$ is a data constructor of $I$: $c \in \Gamma_c$
-\item $\Gamma_A$ is a context binding $\vars{x}$ to the appropriate types:
-  $\lowerc{\Gamma_A} = \vars{x}$
-  % $\Gamma_I,\Gamma_P,\Gamma_C,\Gamma_A \decsyn c\
-  % \lowerc{\Gamma_P}\ \vars{x} : I\ \lowerc{\Gamma_P}\ \vars{s}$, for some
-  % $\vars{s}$
-\item $\vars{x}$ matches the shape of the type $T$ of $c\ \lowerc{\Gamma_c}$ -- that
-  is, not only does it contain an argument for each quantification in $T$, but
-  each argument is given erased / unerased according to the corresponding
-  quantifiers in $T$.
-\end{itemize}
+% \begin{itemize}
+% \item $c$ is a data constructor of $I$: $c \in \Gamma_c$
+% \item $\Gamma_A$ is a context binding $\vars{x}$ to the appropriate types:
+%   $\lowerc{\Gamma_A} = \vars{x}$
+%   % $\Gamma_I,\Gamma_P,\Gamma_C,\Gamma_A \decsyn c\
+%   % \lowerc{\Gamma_P}\ \vars{x} : I\ \lowerc{\Gamma_P}\ \vars{s}$, for some
+%   % $\vars{s}$
+% \item $\vars{x}$ matches the shape of the type $T$ of $c\ \lowerc{\Gamma_c}$ -- that
+%   is, not only does it contain an argument for each quantification in $T$, but
+%   each argument is given erased / unerased according to the corresponding
+%   quantifiers in $T$.
+% \end{itemize}
 
-We furthermore say that a set of patters is well-formed ($WF\mhyph Pats(I, (c\
-\vars{x}_i, \Gamma_{A_i})_{i=1..\lenc{\Gamma_C}})$) when
+% We furthermore say that a set of patters is well-formed ($WF\mhyph Pats(I, (c\
+% \vars{x}_i, \Gamma_{A_i})_{i=1..\lenc{\Gamma_C}})$) when
 
-\begin{itemize}
-\item Each pattern is well-formed: $WF\mhyph Pat(I,c_i\ \vars{x}_i,
-  \Gamma_{A_i})$
-\item The constructors in the patterns are distinct: for all $i,j$, $c_i = c_j$
-  means $i = j$
-\end{itemize}
+% \begin{itemize}
+% \item Each pattern is well-formed: $WF\mhyph Pat(I,c_i\ \vars{x}_i,
+%   \Gamma_{A_i})$
+% \item The constructors in the patterns are distinct: for all $i,j$, $c_i = c_j$
+%   means $i = j$
+% \end{itemize}
 
 
 \subsection{Well-formed inductive definitions}
@@ -764,6 +832,8 @@ definition may be introduced, provided that the following side conditions hold:
   \item No other previously defined inductive datatypes $I'$ nor constructors
     $c'_1..c'_{n'}$ occur anywhere in $\Gamma_P$,$\Gamma_I$, or $\Gamma_C$
 \end{itemize}
+
+\subsection{Well-formed Patterns}
 
 \subsection{Typing Rules}
 
