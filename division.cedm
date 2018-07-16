@@ -6,19 +6,19 @@ data Nat : ★ =
 pred : Nat ➔ Nat
      = λ n . μ _ . n @...
        { Z ↦ Z
-       | S r ↦ toNat/pred r
+       | S r ↦ toNat/_ r
        } .
 
 pred' : Nat ➔ Nat
      = λ n . μ _ . n @...
        { Z ↦ n
-       | S r ↦ toNat/pred r
+       | S r ↦ toNat/_ r
        } .
 
 pred'' : Nat ➔ Nat
      = λ n . μ' n @...
        { Z ↦ n
-       | S r ↦ toNat/pred r
+       | S r ↦ toNat/_ r
        } .
 
 -- toNat/pred : Nat/pred ➔ Nat
