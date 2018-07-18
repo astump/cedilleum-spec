@@ -24,7 +24,7 @@
 \newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
-\newcommand{\indast}[3]{\texttt{Ind} [#1] (#2 := #3)}
+\newcommand{\indast}[4]{\texttt{Ind}_{\text{#1}} [#2] (#3 := #4)}
 \newcommand{\lowerc}[1]{\lfloor {#1} \rfloor}
 \newcommand{\lenc}[1]{\|#1\|}
 \newcommand{\vars}[1]{{\overline{#1}}}
@@ -240,7 +240,7 @@ data Vec (A : ★) : Nat ➔ ★ =
       & \text{the kind of types that classify terms}
       \\ & & \textbf{(}K\textbf{)}
       \\ 
-      \\ \text{Types } T
+      \\ \text{Types } T,P
       & ::= & \textbf{Π}\ x\ \textbf{:}\ T\ \textbf{.}\ T
          & \textnormal{explicit product}
       \\ & &  \textbf{∀}\ x\ \textbf{:}\ C\ \textbf{.}\ T
@@ -633,20 +633,20 @@ documentation and asking them to infer the differences between the two systems.
 To begin with, the production $defDataType$ gives the concrete syntax for datatype definitions,
 but it is not a very useful notation for representing one in the abstract syntax
 tree. In our typing rules we will instead use the notation
-$\indast{p}{\Gamma_I}{\Sigma}$ where $\Gamma_I$ is a context binding
+$\indast{*}{p}{\Gamma_I}{\Sigma}$ where $\Gamma_I$ is a context binding
 \textit{one} type variable $I$ (representing the inductive datatype being defined),
 $\Sigma$ contains the data constructors of type $I$, and $p$ is the number
 of parameters to $I$. For example, consider the \texttt{List} and \texttt{Vec} definitions from
 \ref{sec:syntax}. These will be represented in the AST as
 \\ \\
-\[\indast{1}{List : ★ ➔ ★}
+\[\indast{C}{1}{List : ★ ➔ ★}
 {\begin{array}{lcl}
    nil & : & ∀ A : ★ . List \cdot A
    \\ cons & : & ∀ A : ★ . A ➔ List \cdot A ➔ List \cdot A
  \end{array}
 }\] and
 \\
-\[\indast{1}{Vec : ★ ➔ Nat ➔ ★}
+\[\indast{C}{1}{Vec : ★ ➔ Nat ➔ ★}
 {\begin{array}{lcl}
    vnil & : & ∀ A : ★ . Vec \cdot A\ Z
    \\ vcons & : & ∀ A : ★ . ∀ n : Nat . A ➔ Vec \cdot A\ n ➔ Vec \cdot A\ (S\ n)
@@ -697,7 +697,7 @@ following conditions (each of which is, again, explained in more detail below):
 \item The motive $P$ must be well-kinded
 \item $P$ must be a legal motive to be used in eliminating the inductive type
   $I$ of the scrutinee $t$
-\item Each case $t_i$ must be in a bijection of the $n$ constructors
+\item Each case $t_i$ must be in a bijection with the $n$ constructors
   $\Gamma_{\text{C}}$ of $I$
 \end{itemize}
 
@@ -708,8 +708,8 @@ To ease the notational burden, we will introduce some conventions for writing
 contexts within terms and types.
 
 \begin{itemize}
-\item We write $\lambda\,\Gamma$, $\Lambda\,\Gamma$, $\forall\, \Gamma$, and
-  $\Pi\, \Gamma$ to indicate some form of abstraction over each variable in
+\item We write $\lambda\,\Gamma$, $\Lambda\,\Gamma$, $\forall\,\Gamma$, and
+  $\Pi\,\Gamma$ to indicate some form of abstraction over each variable in
   $\Gamma$. For example, if $\Gamma = \ann{x_1}{T_1},\ann{x_2}{T_2}$ then
   $\absu{\lambda}{\Gamma}{t} =
   \abs{\lambda}{x_1}{T_1}{\abs{\lambda}{x_2}{T_2}{t}}$
@@ -725,23 +725,27 @@ contexts within terms and types.
   if $s$ has type
   $\abs{\forall}{X}{★}{\abs{\forall}{x}{X}{\abs{\Pi}{x'}{X}{X}}}$ and $\Gamma =
   \ann{X}{★},\ann{x}{X},\ann{x'}{X}$ then $s\ \Gamma = s\ \cdot X\ \mhyph x\ x'$
-\item $\Gamma_{\text{Ind}}$ and $\Gamma'_{\text{Ind}}$ are notations we will use
-  for a specially designated associating type variables with both global
+\item $\Delta$ and $\Delta'$ are notations we will use
+  for a specially designated contexts associating type variables with both global
   (``concrete'') and local (``abstracted'') inductive data-type declarations.
   The purpose of this latter sort of declaration is to enable type-guided
-  termination of definitions using fixpoints (see below.)
+  termination of definitions using fixpoints (see below.) For example, given
+  just the (global) data type declaration of $Vec$, we would have $\Delta =
+  \indast{C}{1}{\Gamma_{Vec} := \Sigma}$, where $\Gamma_{Vec} = \ann{Vec}{★ ➔ Nat ➔
+    ★}$ and  $\Sigma$ binds data constructors $vnil$ and $vcons$ to the
+  appropriate types.
 \end{itemize}
 
 \paragraph{$p$-arity}
 
-A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma_P}{K'}$ for
-some $\Gamma_P$ and $K'$, where $\lenc{\Gamma_p} = p$. For an inductive definition
-$\indast{p}{\Gamma_I}{\Sigma}$, requiring that the kind $\Gamma_{I}(I)$ is a $p$-arity
+A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma}{K'}$ for
+some $\Gamma$ and $K'$, where $\lenc{\Gamma} = p$. For an inductive definition
+$\indast{*}{p}{\Gamma_I}{\Sigma}$, requiring that the kind $\Gamma_{I}(I)$ is a $p$-arity
 of ★ ensures that $I$ \textit{really does have} $p$ parameters.
 
 \paragraph{Types of Constructors}
 
-$T$ is a \textit{type of a constructor of $I$} if
+$T$ is a \textit{type of a constructor of $I$} iff
 \begin{itemize}
 \item it is $I\ s_1 ... s_n$
 \item it can be written as $\abs{\forall}{s}{C}{T}$ or $\abs{\Pi}{s}{C}{T}$,
@@ -812,19 +816,20 @@ when
 
 \subsection{Well-formed inductive definitions}
 
-Let $\Gamma_P,\Gamma_I,$ and $\Sigma$ be contexts such that $\Gamma_I$
-associates a single type-variable $I$ to kind $\absu{\Pi}{\Gamma_P}{K_I}$ and
+Let $\Gamma_{\text{P}},\Gamma_I,$ and $\Sigma$ be contexts such that $\Gamma_I$
+associates a single type-variable $I$ to kind $\absu{\Pi}{\Gamma_{\text{p}}}{K}$ and
 $\Sigma$ associates term variables $c_1 ... c_n$ with corresponding types
-$\absu{\forall}{\Gamma_P}{T_{1}},...\absu{\forall}{\Gamma_P}{T_{n}}$. Then the
-rule given in Figure \ref{fig:inductive-intro} states when an inductive datatype
-definition may be introduced, provided that the following side conditions hold:
+$\absu{\forall}{\Gamma_{\text{P}}}{T_{1}},...\absu{\forall}{\Gamma_{\text{P}}}{T_{n}}$.
+Then the rule given in Figure \ref{fig:inductive-intro} states when an inductive
+datatype definition may be introduced, provided that the following side
+conditions hold:
 
 \begin{figure}[h]
   \caption{Introduction of inductive datatype}
   \label{fig:inductive-intro}
   \[
     \infer
-    { \Gamma \vdash \indast{p}{\Gamma_I}{\Sigma}\ wf}
+    { \Gamma \vdash \indast{*}{p}{\Gamma_I}{\Sigma}\ wf}
     { \Gamma_P \vdash K_I : \square
       \quad (\Gamma_I,\Gamma_P \vdash T_{c_i} : ★)_{i=1..n}
     }
@@ -834,11 +839,11 @@ definition may be introduced, provided that the following side conditions hold:
 \begin{itemize}
   \item Names $I$ and $c_1..c_n$ are distinct from any other inductive datatype
     type or constructor names, and distinct amongst themselves
-  \item $\lenc{\Gamma_P} = p$
+  \item $\lenc{\Gamma_{\text{P}}} = p$
   \item Each of $T_1..T_n$ is a type of constructor of $I$ which satisfies the
     positivity condition for $I$
   \item No other previously defined inductive datatypes $I'$ nor constructors
-    $c'_1..c'_{n'}$ occur anywhere in $\Gamma_P$,$\Gamma_I$, or $\Sigma$
+    $c'_1..c'_{n'}$ occur anywhere in $\Gamma_{\text{P}}$,$\Gamma_I$, or $\Sigma$
 \end{itemize}
 
 \subsection{Valid Elimination Kind}
@@ -849,55 +854,57 @@ definition may be introduced, provided that the following side conditions hold:
   \[
     \begin{array}{ccc}
       \infer
-      { \llbracket \ann{T}{★}\ |\ T \to ★ \rrbracket }
+      { \llbracket T : ★\ |\ T \to ★ \rrbracket }
       { }
       & \infer
-        { \llbracket \ann{T}{\abs{\Pi}{s}{C}{K_I}\ |\ \abs{\Pi}{s}{C}{K}} \rrbracket}
-        { \llbracket \ann{T\ s}{K_I}\ |\ K \rrbracket }
+        { \llbracket T : \abs{\Pi}{c}{C}{K}\ |\ \abs{\Pi}{s}{C}{K'} \rrbracket}
+        { \llbracket T\ s : K\ |\ K' \rrbracket }
     \end{array}
   \]
 \end{figure}
 
 When type-checking a pattern match (either $\mu$ or $\mu'$), we need to know
 that the given motive $P$ has a kind $K$ for which elimination of a term with
-some inductive data-type $I$ is permissible. We
-write this judgment as $\llbracket \ann{T}{K_I} | K \rrbracket$, which should be read
-``the type $T$ of a constructor of $I$ can be eliminated with a motive of kind
-$K$'' (where $I$ is usually obvious by the context). This judgment is defined by
-the simple rules in Figure \ref{fig:valid-elim-kind}. For example, a valid
-elimination kind for the type $Vec\ \cdot X$ is
-$\abs{\Pi}{n}{Nat}{\abs{\Pi}{x}{Vec\ \cdot X\ n}{X}}$
+some inductive data-type $I$ is permissible. We write this judgment as
+$\llbracket \ann{T}{K} | K \rrbracket$, which should be read ``the type $T$ can
+be eliminated through pattern-matching with a motive of kind $K$''. This
+judgment is defined by the simple rules in Figure \ref{fig:valid-elim-kind}. For
+example, a valid elimination kind for the indexed type family $Vec\ \cdot X$
+(which has kind $\abs{\Pi}{n}{Nat}{★}$) is $\abs{\Pi}{n}{Nat}{\abs{\Pi}{x}{Vec\
+    \cdot X\ n}{★}}$
 
 \subsection{Valid Branch Type}
 
-Another piece of kit we need is to ensure that, in a pattern-matching
+Another piece of kit we need is a way to ensure that, in a pattern-matching
 expression, a particular branch has the correct type given a particular
 constructor of an inductive data-type and a motive. We write $\llbrace c : T
-\rrbrace^P$ to indcate the type coressponding to the (possibly partially
-applied) constructor $c$ and its type $T$ of an inductive data-type $I$ (that
-is, we assume $T$ is the type of a constructor of $I$). Computing this type is
-defined recursively by the following set of equations:
+\rrbrace^P_I$ to indcate the type coressponding to the (possibly partially
+applied) constructor $c$ and its type $T$ of an inductive data-type $I$. We
+abbreviate this notation to $\llbrace c \rrbrace^P$ when the inductive type
+variable $I$, and the type $T$ of $c$, is known from the (meta-language) context.
 
 \[
   \begin{array}{rcl}
-    \llbrace c : I\ \vars{T}\ \vars{s} \rrbrace^P
+    \llbrace c : I\ \vars{T}\ \vars{s} \rrbrace^P_I
     & = & P\ \vars{s}\ c
-    \\ \llbrace c : \abs{\forall}{x}{C}{T} \rrbrace^P
-    & = & \abs{\forall}{x}{C}{\llbrace c\ x : T \rrbrace }
-    \\ \llbrace c : \abs{\Pi}{x}{C}{T} \rrbrace^P
-    & = & \abs{\Pi}{x}{C}{\llbrace c\ x : T \rrbrace }
+    \\ \llbrace c : \abs{\forall}{x}{T'}{T} \rrbrace^P_I
+    & = & \abs{\forall}{x}{T'}{\llbrace c\ \mhyph x : T \rrbrace^P_I }
+    \\ \llbrace c : \abs{\forall}{x}{K}{T} \rrbrace^P_I
+    & = & \abs{\forall}{x}{K}{\llbrace c\ \cdot x : T \rrbrace^P_I }
+    \\ \llbrace c : \abs{\Pi}{x}{T'}{T} \rrbrace^P_I
+    & = & \abs{\Pi}{x}{T'}{\llbrace c\ x : T \rrbrace^P_I }
   \end{array}
 \]
 
 \noindent where we leave implicit the book-keeping required to separate the
-instantiated parameters $\vars{T}$ from the indicies $\vars{s}$. When the type
-of $c$ is obvious from context we will write $\llbrace c \rrbrace^P$
+parameters $\vars{T}$ from the indicies $\vars{s}$.
 
 The biggest difference bewteen this definition and the similar one found in the
 Coq documentation is that types can have implicit and explicit quantifiers, so
 we must make sure that the types of branches have implicit / explicit
-quantifiers corresponding to those of the arguments to the data constructor for
-the pattern for the branch.
+quantifiers (and the subjects have applications for types, implicit terms, and
+explicit terms), corresponding to those of the arguments to the data constructor
+for the pattern for the branch.
 
 \subsection{Well-formed Patterns}
 
@@ -906,32 +913,33 @@ the pattern for the branch.
   \label{fig:wf-pattern}
   \[
     \infer
-    { \wfpat{\Gamma,\Gamma_{\mu}}{\indast{p}{\Gamma_I}{\Sigma}}{\vars{T}}{\mu'(t,P,t_{i=1..n})}
+    { \wfpat{\Gamma,\Delta}{\indast{*}{p}{\Gamma_I}{\Sigma}}{\vars{T}}{\mu'(t,P,t_{i=1..n})}
     }
     { \Gamma \vdash P : K
-      \quad \llbracket I\ \vars{T}\ |\ K \rrbracket
       \quad \Sigma = \ann{c_1}{\absu{\forall}{\Gamma_P}{T_1}}, ..., \ann{c_n}{\absu{\forall}{\Gamma_P}{T_n}}
       \quad \lenc{\vars{T}} = \lenc{\Gamma_p} = p
-      \quad (\Gamma,\Gamma_{\mu} \decchk t_i : \llbrace c_i\ \vars{T} \rrbrace^P)_{i=1..n}
+      \quad \llbracket I\ \vars{T}\ |\ K \rrbracket
+      \quad (\Gamma,\Delta \decchk t_i : \llbrace c_i\ \vars{T} \rrbrace^P)_{i=1..n}
     }
   \]
 \end{figure}
 
 % TODO 
 Figure \ref{fig:wf-pattern} gives the rule for checking that a pattern
-$\mumat(t,P,t_{i=1..n})$ is well-formed. We check that the motive $P$ is
-well-kinded at kind $K$, that an inductive data-type $I$ instantiated with
-parameters $T$ can be eliminated to a type of kind $K$, that the branches $t_i$
-account for each of the constructors in $\Sigma$, and that the given parameters
-$\vars{T}$ matches the number we are expecting $p$ from the given inductive
-data-type declaration.
+$\mu'(t,P,t_{i=1..n})$ is well-formed. We check that the motive $P$ is
+well-kinded at kind $K$, that the given parameters $\vars{T}$ match the expected
+number $p$ from the inductive data-type declaration, that an inductive data-type $I$ instantiated with the
+given parameters $\vars{T}$ can be eliminated to a type of kind $K$, that the
+given branches $t_i$ account for each of the constructors $c_i$ of $\Sigma$ and
+have the required branch type $\llbrace c_i\ \vars{T} \rrbrace^P$ under the
+given local context $\Gamma$ and context of inductive data-type declarations $\Delta$.
 
 \subsection{Typing Rules}
 
 \begin{figure}[h]
-  \caption{Use of an inductive datatype $\indast{p}{\Gamma_I}{\Sigma}$}
+  \caption{Use of an inductive datatype $\indast{*}{p}{\Gamma_I}{\Sigma}$}
   \label{fig:inductive-use}
-  \[
+  \[ \footnotesize
     \begin{array}{lr}
       \infer
       { \Gamma \vdash I : \Gamma_I(I) }
@@ -940,42 +948,50 @@ data-type declaration.
         { \Gamma \decdir c : \Sigma(c) }
         { }
     \end{array}
-    \] \par\medskip \[
+  \] \par\medskip \[ \footnotesize
     \begin{array}{c}
       \infer
-      { \Gamma,\Gamma_{\mu} \decdir
-        \mumat
-        {t\ @\absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \lowerc{\Gamma_P}\
-         \lowerc{\Gamma_D}}{T}}}
-        {(|\ c_i\ \lowerc{\Gamma_{A_i}} \mapsto t_i)}
-        : [\vars{s}/\lowerc{\Gamma_D},t/x]\ T
-        % \mu'\ t\ @
-      % \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \lowerc{\Gamma_P}\
-      % \lowerc{\Gamma_D}}{T}} : [\vars{s}/\lowerc{\Gamma_D},t/x]\ T
+      { \Gamma,\Delta \decdir \mu'(t,P,t_{i=1..n}) : P\ \vars{s}\ t}
+      { \Gamma \decsyn t : I\ \vars{T}\ \vars{s}
+      \quad \wfpat{\Gamma,\Delta}{\Delta(I)}{\vars{T}}{\mu'(t,P,t_{i=1..n})}
+      }
+      \\ \\
+      \\ \infer
+      { \Gamma,\Delta \decdir \mu(x_{\text{rec}}, I',
+      x_{\text{to}},t,P,t_{i=1..n}) : P\ \vars{s}\ t
       }
       {
       \begin{array}{c}
-      \begin{array}{lr}
-        \Gamma \decsyn t : I\ \lowerc{\Gamma_P}\ \vars{s}
-        & \Gamma_{\mu}(I)\!=\!\indast{\Gamma_P}{\Gamma_I}{\Sigma},\lenc{\Sigma}=n
-        \\ \\ \Gamma,\Gamma_D,\ann{x}{I\ \lowerc{\Gamma_P}\ \lowerc{\Gamma_D}}
-        \vdash T : ★
-        & WF\mhyph Pats(I, (c_i\ \lowerc{\Gamma_{A_i}}, \Gamma_{A_i})_{i=1..n})
-        % & (c_i \in \Sigma \text{ and } \Gamma \decsyn c_i\ \lowerc{\Gamma_P}
-        %   \lowerc{\Gamma_{A_i}} : I\ \lowerc{\Gamma_P}\ \vars{s_i})_{i=1..n}
-      \end{array}
-        \\ \\ (\Gamma,\Gamma_{A_i} \vdash t_i :
-        [\vars{s_i}/\lowerc{\Gamma_D},(c_i\ \lowerc{\Gamma_P}\
-        \lowerc{\Gamma_{A_i}})/x]\ T
-        \quad erased(\Gamma_{A_i}) \cap FV(|t_i|) = \varnothing
-        )_{i=1..n}
+        \begin{array}{cccc}
+          \Gamma \decsyn t : I\ \vars{T}\ \vars{s}
+          & \Delta(I) = \indast{C}{p}{\Gamma_I}{\Sigma}
+          & \Gamma_I(I) =
+            \absu{\Pi}{\Gamma_P}{\absu{\Pi}{\Gamma_{\text{D}}}{★}},\lenc{\Gamma_P}
+            = p
+          & Hist(\Delta,I,I') = \indast{H}{0}{\Gamma_{I'}}{\Sigma'}
+        \end{array}
+        \\ \\
+        \begin{array}{cc}
+          \Gamma' = \Gamma,\ann{I'}{ \absu{\Pi}{\Gamma_{\text{D}}}{★}},
+          \ann{x_{\text{to}}}{ \absu{\forall}{\Gamma_{\text{D}}}{I'\
+          \Gamma_{\text{D}} \to I\ \vars{T}\
+          \Gamma_{\text{D}}}}\!=\!\absu{\lambda}{x}{x},
+          \ann{x_{\text{rec}}}{\absu{\forall}{\Gamma_{\text{D}}}{\abs{\Pi}{x}{I'\
+          \Gamma_{\text{D}}}{P\ \Gamma_{\text{D}}\ (x_{\text{to}}\ \Gamma_{D}\ x)}
+          }}
+          & \Delta' = \Delta,Hist(\Delta,I,I')
+        \end{array}
+        \\ \\
+        \begin{array}{c}
+          \wfpat{\Gamma',\Delta'}{\Delta'(I')}{\varnothing}{\mu'(t,P,t_{i=1..n})}
+        \end{array}
       \end{array}
       }
     \end{array}
   \]
 \end{figure}
 
-Assuming that an inductive definition $\indast{p}{\Gamma_I}{\Sigma}$ is
+Assuming that an inductive definition $\indast{!!}{p}{\Gamma_I}{\Sigma}$ is
 well-formed and has been defined, the typing rules of Figure
 \ref{fig:inductive-use} govern its usage.
 
