@@ -830,8 +830,11 @@ conditions hold:
   \[
     \infer
     { \Gamma \vdash \indast{*}{p}{\Gamma_I}{\Sigma}\ wf}
-    { \Gamma_P \vdash K_I : \square
-      \quad (\Gamma_I,\Gamma_P \vdash T_{c_i} : ★)_{i=1..n}
+    { \Gamma_P \vdash \Gamma_I(I) : \square
+      \quad \Sigma = \ann{c_1}{\absu{\forall}{\Gamma_P}{T_1}},...,
+      \ann{c_n}{\absu{\forall}{\Gamma_P}{T_n}}
+      \quad \lenc{\Gamma_P} = p
+      \quad (\Gamma_I,\Gamma_P \vdash T_i : ★)_{i=1..n}
     }
   \]
 \end{figure}
@@ -845,6 +848,10 @@ conditions hold:
   \item No other previously defined inductive datatypes $I'$ nor constructors
     $c'_1..c'_{n'}$ occur anywhere in $\Gamma_{\text{P}}$,$\Gamma_I$, or $\Sigma$
 \end{itemize}
+
+When an inductive (concrete) data-type has been defined using the $defDataType$
+production, it is understood (and left implicit) that this adds to a global
+typing context the variable bindings in $\Gamma_I$ and $\Sigma$.
 
 \subsection{Valid Elimination Kind}
 
@@ -934,21 +941,49 @@ given branches $t_i$ account for each of the constructors $c_i$ of $\Sigma$ and
 have the required branch type $\llbrace c_i\ \vars{T} \rrbrace^P$ under the
 given local context $\Gamma$ and context of inductive data-type declarations $\Delta$.
 
+\subsection{Generation of Histomorphic Datatype Definitions}
+
+Cedilleum supports \textit{histomorphic} recursion where termination is ensured
+through typing. In order to make this possible, we need a mechanism for tracking
+the global definitions of \textit{concrete} inductive data types as well the
+locally-introduced \textit{abstract} inductive data type representing the
+recursive occurences suitable for a fixpoint function to be called on.
+
+If $I$ is an inductive type such that $\Delta(I) =
+\indast{C}{p}{\Gamma_I}{\Sigma}$ and $I'$ is a fresh type variable, then we
+define function $Hist(\Delta,I,I')$ producing an abstracted (well-formed)
+inductive definition $\indast{H}{0}{\Gamma_{I'}}{\Sigma'}$, where
+
+\begin{itemize}
+\item $\Gamma_{I'}(I') = \absu{\forall}{\Gamma_D}{★}$ if $\Gamma_{I}(I) =
+  \absu{\forall}{\Gamma_{P}}{\abs{\forall}{\Gamma_D}{★}}$ (and $\lenc{\Gamma_P}
+  = p$)
+
+  That is, the kind of $I'$ is the same as the kind of $I\ \vars{T}$
+\item $\Sigma' = \ann{c_1}{T'_1},...,\ann{c_n}{T'_n}$ when $\Sigma =
+  \ann{c_1}{\absu{\forall}{\Gamma_P}{T_1}},...,\ann{c_n}{\absu{\forall}{\Gamma_P}{T_n}}$ and $T'_i =
+  [\absu{\lambda}{\Gamma_P}{I'}/I]\ [\vars{T}/\Gamma_P]\ T_i$ for all $i=1..n$
+
+  That is, the new signature of constructiors $\Sigma'$ is taken by replacing
+  all occurences of $I\ \Gamma_P$ with $I'$ and instantiating each parameter
+  variable in $\Gamma_P$ with the corresponding parameter of $\vars{T}$
+\end{itemize}
+
+For convenience, $\Sigma'$ binds the same constructor names as did $\Sigma$.
+There is however no risk of ambiguity in typing an expression from doing this:
+as we will see below in Section \ref{sec:typing-rules}, these variables are
+\textit{not} added to the typing context, meaning that when writing programs
+there are no constructors for the abstracted inductive type $I'$. Instead,
+$\Sigma'$ serves merely to ensure that pattern-matching branches are well-typed
+for the abstrated inductive data type.
+
 \subsection{Typing Rules}
+\label{sec:typing-rules}
 
 \begin{figure}[h]
   \caption{Use of an inductive datatype $\indast{*}{p}{\Gamma_I}{\Sigma}$}
   \label{fig:inductive-use}
   \[ \footnotesize
-    \begin{array}{lr}
-      \infer
-      { \Gamma \vdash I : \Gamma_I(I) }
-      { }
-      &  \infer
-        { \Gamma \decdir c : \Sigma(c) }
-        { }
-    \end{array}
-  \] \par\medskip \[ \footnotesize
     \begin{array}{c}
       \infer
       { \Gamma,\Delta \decdir \mu'(t,P,t_{i=1..n}) : P\ \vars{s}\ t}
@@ -972,17 +1007,19 @@ given local context $\Gamma$ and context of inductive data-type declarations $\D
         \end{array}
         \\ \\
         \begin{array}{cc}
-          \Gamma' = \Gamma,\ann{I'}{ \absu{\Pi}{\Gamma_{\text{D}}}{★}},
+          \Gamma' = \Gamma,\Gamma_{I'},
           \ann{x_{\text{to}}}{ \absu{\forall}{\Gamma_{\text{D}}}{I'\
           \Gamma_{\text{D}} \to I\ \vars{T}\
-          \Gamma_{\text{D}}}}\!=\!\absu{\lambda}{x}{x},
+          \Gamma_{\text{D}}}}\!=\!\absu{\Lambda}{\Gamma_D}{\absu{\lambda}{x}{x}},
           \ann{x_{\text{rec}}}{\absu{\forall}{\Gamma_{\text{D}}}{\abs{\Pi}{x}{I'\
           \Gamma_{\text{D}}}{P\ \Gamma_{\text{D}}\ (x_{\text{to}}\ \Gamma_{D}\ x)}
           }}
           & \Delta' = \Delta,Hist(\Delta,I,I')
         \end{array}
         \\ \\
-        \begin{array}{c}
+        \begin{array}{cc}
+          % P' = \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I'\ \Gamma_D}{P\ 
+          % \Gamma_D\ (x_{\text{to}}\ \Gamma_D\ x)} }
           \wfpat{\Gamma',\Delta'}{\Delta'(I')}{\varnothing}{\mu'(t,P,t_{i=1..n})}
         \end{array}
       \end{array}
@@ -991,45 +1028,88 @@ given local context $\Gamma$ and context of inductive data-type declarations $\D
   \]
 \end{figure}
 
-Assuming that an inductive definition $\indast{!!}{p}{\Gamma_I}{\Sigma}$ is
-well-formed and has been defined, the typing rules of Figure
-\ref{fig:inductive-use} govern its usage.
+The first rule of Figure \ref{fig:inductive-use} is for typing simple pattern
+matching with $\mu'$. We need to know that the scrutinee $t$ is well-typed at
+some inductive type $I\ \vars{T}\ \vars{s}$, where $\vars{T}$ represents the
+parameters and $\vars{s}$ the indicies. Then we defer to the judgment
+$WF\mhyph\!Pat$ to ensure that this pattern-matching expression is a valid
+elimination of $t$ to type $P$.
 
-The rules for typing uses of $\mu$ and $\mu'$ are fairly involved. We will start
-with the latter, since its the simpler of the two and overlaps a good deal with
-the former. Before diving into the details of these rules, we need to understand
-a few notational conventions. First, $\Gamma_{mu}$ is a special context of type
-variables tracking which ones are inductive by associating them with their
-inductive declaration. Second, the notation $\lowerc{\Gamma}$ indicates a
-sequence of variable arguments given by context $\Gamma$. For example, if
-$\Gamma_P = A : ★$ and $\Gamma_D = n : Nat$, then the type written $Vec\ 
-\lowerc{\Gamma_P}\ \lowerc{\Gamma_D}$ is equivalent to $Vec \cdot A\ n$
-\footnote{With the kind of $Vec$ guiding which flavor of application is
-  appropriate.} By convention, $\Gamma_D$ is meant to be read as the ``context
-of type in\textbf{d}ices''. Finally, $\lenc{\Gamma}$ represents the number of
-associated variables in $\Gamma$.
+The second rule is for typing pattern-matching with fix-points, and is
+significantly more involved. As above we check the scrutinee $t$ has some
+inductive type $I\ \vars{T}\ \vars{s}$. We confirm that $I$ is a
+\textit{concrete} inductive data-type by looking up its definition in $\Delta$,
+and then generate the abstracted definition $Hist(\Delta,I,I')$ for some fresh
+$I'$. We then add to the local typing context $\Gamma_{I'}$ (the new inductive
+type $I'$ with its associated kind) and two new variables $x_{\text{to}}$ and
+$x_{\text{rec}}$.
 
-The $\mu'$ operator performs simple pattern-matching and has three components.
-The first component is the scrutinee $t$, and the first and second premises of
-this typing rule ensure that $t$ really is an inductive data type by checking
-that it is indeed well-typed, that its type is some variable-headed application,
-and that this variable head has a corresponding inductive definition. The next
-component is the \textit{motive}, which is preceded by the $@$ symbol.
-Essentially, type $T$ is the property the programmer wishes to prove, and $\mu'$
-allows them to do so by \textit{case analysis}. We check that the motive is
-well-kinded in the third premise. The last component of $\mu'$ is the cases
-covering the constructors of $I$. Each constructor case $c_i$ comes with its own
-sub-data held in $\Gamma_{A_i}$; the fourth premise checks that each $c_i$
-really is a constructor and the left-hand side patterns are type-correct
-(applied to the right number of arguments and of the right flavor of
-application.) Left implicit in these premises is the condition that each $c_i$
-be mutually distinct. The fifth premise checks that each right-hand side of the
-case is well-typed, given the new arguments introduced by $\Gamma_A$, and that
-arguments of a case analysis introduced in an erased position are used
-correctly. Each $t_i$ is expected to have a type derived from $T$, where the
-indices $\Gamma_D$ have been replaced by the particular constructor's
-$\vars{s_i}$ and the abstracted subject of case analysis $x$ by $c_i$ applied to
-its arguments.
+\begin{itemize}
+\item $x_{\text{to}}$ is the \textit{revealer}. It casts a term of an abstracted inductive
+  data-type $I'\ \Gamma_D$ to the concrete type $I\ \vars{T}\ \Gamma_D$.
+  Crucially, it is an \textit{identity} cast (the implicit quantification over
+  $\Gamma_D$ disappears after erasure). The intuition why this should be
+  the case is that the abstracted type $I'$ only serves to mark the recursive
+  occurrences of $I$ during pattern-matching to guarantee termination.
+\item $x_{\text{rec}}$ is the \textit{recursor} (or the inductive hypothesis).
+  Its result type $P\ \Gamma_D\ (x_{\text{to}}\ \Gamma_D\ x)$ utilizes
+  $x_{\text{to}}$ to be well-typed. Because $x_{\text{to}}$ erases to the
+  identity, uses of the $x_{\text{rec}}$ will produce expressions whose types
+  will not interfere with producing the needed result for a given branch (see
+  the extended example -- TODO).
+\end{itemize}
+
+\noindent With these definitions, we finish the rule by checking that the
+pattern is well-formed using the augmented local context $\Gamma'$ and context
+of inductive data-type definitions $\Delta'$.
+
+Note that there is a subtle issue in checking that the branches $t_i$ have the
+right type for the fix-point pattern-matching case. Within the definition of
+$Wf\mhyph\!Pat$, the type computed by $\llrbrace c'_i \rrbrace^P'_I'$ (where
+$c'_i$ is one of the constructors of $\Sigma'$) will be a function type possibly
+abstracting over the type $I'$. But, when we compute the base case $P\ c''_i$
+(where $c''_i$ is $c'_i$ ``saturated'' with all of its arguments), $c''_i$ will
+be ``re-interpreted'' by $P$ as an expression computing the concrete data-type $I$.
+
+% Assuming that an inductive definition $\indast{!!}{p}{\Gamma_I}{\Sigma}$ is
+% well-formed and has been defined, the typing rules of Figure
+% \ref{fig:inductive-use} govern its usage.
+
+% The rules for typing uses of $\mu$ and $\mu'$ are fairly involved. We will start
+% with the latter, since its the simpler of the two and overlaps a good deal with
+% the former. Before diving into the details of these rules, we need to understand
+% a few notational conventions. First, $\Gamma_{mu}$ is a special context of type
+% variables tracking which ones are inductive by associating them with their
+% inductive declaration. Second, the notation $\lowerc{\Gamma}$ indicates a
+% sequence of variable arguments given by context $\Gamma$. For example, if
+% $\Gamma_P = A : ★$ and $\Gamma_D = n : Nat$, then the type written $Vec\ 
+% \lowerc{\Gamma_P}\ \lowerc{\Gamma_D}$ is equivalent to $Vec \cdot A\ n$
+% \footnote{With the kind of $Vec$ guiding which flavor of application is
+%   appropriate.} By convention, $\Gamma_D$ is meant to be read as the ``context
+% of type in\textbf{d}ices''. Finally, $\lenc{\Gamma}$ represents the number of
+% associated variables in $\Gamma$.
+
+% The $\mu'$ operator performs simple pattern-matching and has three components.
+% The first component is the scrutinee $t$, and the first and second premises of
+% this typing rule ensure that $t$ really is an inductive data type by checking
+% that it is indeed well-typed, that its type is some variable-headed application,
+% and that this variable head has a corresponding inductive definition. The next
+% component is the \textit{motive}, which is preceded by the $@$ symbol.
+% Essentially, type $T$ is the property the programmer wishes to prove, and $\mu'$
+% allows them to do so by \textit{case analysis}. We check that the motive is
+% well-kinded in the third premise. The last component of $\mu'$ is the cases
+% covering the constructors of $I$. Each constructor case $c_i$ comes with its own
+% sub-data held in $\Gamma_{A_i}$; the fourth premise checks that each $c_i$
+% really is a constructor and the left-hand side patterns are type-correct
+% (applied to the right number of arguments and of the right flavor of
+% application.) Left implicit in these premises is the condition that each $c_i$
+% be mutually distinct. The fifth premise checks that each right-hand side of the
+% case is well-typed, given the new arguments introduced by $\Gamma_A$, and that
+% arguments of a case analysis introduced in an erased position are used
+% correctly. Each $t_i$ is expected to have a type derived from $T$, where the
+% indices $\Gamma_D$ have been replaced by the particular constructor's
+% $\vars{s_i}$ and the abstracted subject of case analysis $x$ by $c_i$ applied to
+% its arguments.
 
 
 \end{document}
