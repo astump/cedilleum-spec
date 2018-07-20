@@ -1,5 +1,6 @@
 \documentclass{article}
 
+% \usepackage{todonotes}
 \usepackage{amsmath,amssymb,amsthm}
 %\usepackage{unicode-math}
 \usepackage{url}
@@ -8,6 +9,7 @@
 \usepackage{subcaption}
 \usepackage{cedilleverbatim}
 \usepackage{proof}
+
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
 \DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
 \DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
@@ -20,6 +22,7 @@
 \mathchardef\mhyph="2D % Define a "math hyphen"
 \newcommand{\indast}[3]{\texttt{Ind } [#1]\ (#2 := #3)}
 \newcommand{\lowerc}[1]{\lfloor {#1} \rfloor}
+\newcommand{\lenc}[1]{\|#1\|}
 \newcommand{\vars}[1]{{\overline{#1}}}
 
 % - type inference
@@ -631,7 +634,7 @@ subsections):
 \paragraph{$p$-arity}
 
 A kind $K$ is a $p$-arity if it can be written as $\absu{\Pi}{\Gamma_P}{K'}$ for
-some $\Gamma_P$ and $K'$, where $|\Gamma_P| = p$ and $\Pi\,\Gamma_P$ represents
+some $\Gamma_P$ and $K'$, where $\lenc{\Gamma_p} = p$ and $\Pi\,\Gamma_P$ represents
 the explicit quantification of all term and type variables in $\Gamma_P$
 (similarly, $\forall\, \Gamma_P$ represents the \textit{implicit} quantification
 of these variables). For an inductive definition
@@ -668,6 +671,9 @@ when
   occurs only positively in $T'$, and $I$ \textit{does not} occur positively in $C$
 \end{itemize}
 
+\paragraph{Well-formed patterns}
+TODO: erasure, exhaustiveness, non-overlapping
+
 \subsection{Well-formed inductive definitions}
 
 Let $\Gamma_P,\Gamma_I,$ and $\Gamma_C$ be contexts such that $\Gamma_I$
@@ -692,7 +698,7 @@ definition may be introduced, provided that the following side conditions hold:
 \begin{itemize}
   \item Names $I$ and $c_1..c_n$ are distinct from any other inductive datatype
     type or constructor names, and distinct amongst themselves
-  \item $|\Gamma_P| = p$
+  \item $\lenc{\Gamma_P} = p$
   \item Each of $T_1..T_n$ is a type of constructor of $I$ which satisfies the
     positivity condition for $I$
   \item No other previously defined inductive datatypes $I'$ nor constructors
@@ -730,7 +736,7 @@ definition may be introduced, provided that the following side conditions hold:
       \begin{array}{c}
       \begin{array}{lr}
         \Gamma \decsyn t : I\ \lowerc{\Gamma_P}\ \vars{s}
-        & \Gamma_{\mu}(I)\!=\!\indast{\Gamma_P}{\Gamma_I}{\Gamma_C},|\Gamma_C|=n
+        & \Gamma_{\mu}(I)\!=\!\indast{\Gamma_P}{\Gamma_I}{\Gamma_C},\lenc{\Gamma_C}=n
         \\ \\ \Gamma,\Gamma_D,\ann{x}{I\ \lowerc{\Gamma_P}\ \lowerc{\Gamma_D}}
           \vdash T : ★
         & (c_i \in \Gamma_C \text{ and } \Gamma \decsyn c_i\ \lowerc{\Gamma_P}
@@ -738,7 +744,9 @@ definition may be introduced, provided that the following side conditions hold:
       \end{array}
         \\ \\ (\Gamma,\Gamma_{A_i} \vdash t_i :
         [\vars{s_i}/\lowerc{\Gamma_D},(c_i\ \lowerc{\Gamma_P}\
-        \lowerc{\Gamma_{A_i}})/x]\ P)_{i=1..n}
+        \lowerc{\Gamma_{A_i}})/x]\ T
+        \quad erased(\Gamma_{A_i}) \cap FV(|t_i|) = \varnothing
+        )_{i=1..n}
       \end{array}
       }
     \end{array}
@@ -748,5 +756,42 @@ definition may be introduced, provided that the following side conditions hold:
 Assuming that an inductive definition $\indast{p}{\Gamma_I}{\Gamma_C}$ is
 well-formed and has been defined, the typing rules of Figure
 \ref{fig:inductive-use} govern its usage.
+
+The rules for typing uses of $\mu$ and $\mu'$ are fairly involved. We will start
+with the latter, since its the simpler of the two and overlaps a good deal with
+the former. Before diving into the details of these rules, we need to understand
+a few notational conventions. First, $\Gamma_{mu}$ is a special context of type
+variables tracking which ones are inductive by associating them with their
+inductive declaration. Second, the notation $\lowerc{\Gamma}$ indicates a
+sequence of variable arguments given by context $\Gamma$. For example, if
+$\Gamma_P = A : ★$ and $\Gamma_D = n : Nat$, then the type written $Vec\ 
+\lowerc{\Gamma_P}\ \lowerc{\Gamma_D}$ is equivalent to $Vec \cdot A\ n$
+\footnote{With the kind of $Vec$ guiding which flavor of application is
+  appropriate.} By convention, $\Gamma_D$ is meant to be read as the ``context
+of type in\textbf{d}ices''. Finally, $\lenc{\Gamma}$ represents the number of
+associated variables in $\Gamma$.
+
+The $\mu'$ operator performs simple pattern-matching and has three components.
+The first component is the scrutinee $t$, and the first and second premises of
+this typing rule ensure that $t$ really is an inductive data type by checking
+that it is indeed well-typed, that its type is some variable-headed application,
+and that this variable head has a corresponding inductive definition. The next
+component is the \textit{motive}, which is preceded by the $@$ symbol.
+Essentially, type $T$ is the property the programmer wishes to prove, and $\mu'$
+allows them to do so by \textit{case analysis}. We check that the motive is
+well-kinded in the third premise. The last component of $\mu'$ is the cases
+covering the constructors of $I$. Each constructor case $c_i$ comes with its own
+sub-data held in $\Gamma_{A_i}$; the fourth premise checks that each $c_i$
+really is a constructor and the left-hand side patterns are type-correct
+(applied to the right number of arguments and of the right flavor of
+application.) Left implicit in these premises is the condition that each $c_i$
+be mutually distinct. The fifth premise checks that each right-hand side of the
+case is well-typed, given the new arguments introduced by $\Gamma_A$, and that
+arguments of a case analysis introduced in an erased position are used
+correctly. Each $t_i$ is expected to have a type derived from $T$, where the
+indices $\Gamma_D$ have been replaced by the particular constructor's
+$\vars{s_i}$ and the abstracted subject of case analysis $x$ by $c_i$ applied to
+its arguments.
+
 
 \end{document}
