@@ -451,6 +451,15 @@ of pure terms.
 \label{sec:type-system}
 
 \begin{figure}[h]
+  \caption{Contexts}
+  \[
+    \begin{array}{llll}
+      \text{ Typing contexts } \Gamma
+      & ::= & \emptyset\ |\ \ann{x}{C},\Gamma\ |\ \ann{x=s}{C},\Gamma
+    \end{array}
+  \]
+\end{figure}
+\begin{figure}[h!]
   \[ \small
     \begin{array}{lcr}
       \infer{\Gamma\vdash \star : \Box}{\ }
@@ -497,7 +506,7 @@ of pure terms.
   \label{fig:sort-checking}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[h!]
   \[ \small
     \begin{array}{lcr}
       \infer
@@ -814,10 +823,8 @@ conditions hold:
   \label{fig:inductive-intro}
   \[
     \infer
-    { \Gamma \vdash \indast{M}{p}{\Gamma_I}{\Sigma}\ wf}
-    { \Gamma_P \vdash \Gamma_I(I) : \square
-      \quad \Sigma = \ann{c_1}{\absu{\forall}{\Gamma_P}{T_1}},...,
-      \ann{c_n}{\absu{\forall}{\Gamma_P}{T_n}}
+    { \indast{M}{p}{\Gamma_I}{\Sigma}\ wf}
+    { \emptyset \vdash \Gamma_I(I) : \square
       \quad \lenc{\Gamma_P} = p
       \quad (\Gamma_I,\Gamma_P \vdash T_i : ★)_{i=1..n}
     }
@@ -834,10 +841,12 @@ conditions hold:
     do not overlap with each other nor any identifiers in $\Gamma_P$.
 \end{itemize}
 
-When an inductive data-type has been defined using the $defDataType$
-production, it is understood that this always a concrete inductive type, and it
-(implicitly) adds to a global typing context the variable bindings in $\Gamma_I$
-and $\Sigma$.
+When an inductive data-type has been defined using the $defDataType$ production,
+it is understood that this always a concrete inductive type, and it (implicitly)
+adds to a global typing context the variable bindings in $\Gamma_I$ and
+$\Sigma$. Similarly, when checking that the kind $\Gamma_I(I)$ and type $T_i$
+are well-sorted and well-kinded, we assume an (implicit) global context of
+previous definitions.
 
 \subsection{Valid Elimination Kind}
 \label{ssec:pattern-valid-elim}
@@ -999,9 +1008,11 @@ we will take more care to distinguish the abstract constructors (see Subsection
         \\ \\
         \begin{array}{cc}
           \Gamma' = \Gamma,\Gamma_{I'},
-          \ann{x_{\text{to}}}{ \absu{\forall}{\Gamma_{\text{D}}}{I'\
-          \Gamma_{\text{D}} \to I\ \vars{T}\
-          \Gamma_{\text{D}}}}\!=\!\absu{\Lambda}{\Gamma_D}{\absu{\lambda}{x}{x}},
+          \ann
+           {x_{\text{to}}=\absu{\Lambda}{\Gamma_D}{\absu{\lambda}{x}{x}}}
+           { \absu{\forall}{\Gamma_{\text{D}}}{I'\
+            \Gamma_{\text{D}} \to I\ \vars{T}\
+            \Gamma_{\text{D}}}},
           \ann{x_{\text{rec}}}{\absu{\forall}{\Gamma_{\text{D}}}{\abs{\Pi}{x}{I'\
           \Gamma_{\text{D}}}{P'\ \Gamma_{\text{D}}\ x}
           }}
