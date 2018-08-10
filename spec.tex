@@ -40,6 +40,7 @@
 \newcommand{\wfpat}[4]{WF\!\mhyph\!Pat(#1,#2,#3,#4)}
 \newcommand{\llbrace}{\{\!\{}
 \newcommand{\rrbrace}{\}\!\}}
+\newcommand{\piforall}{^{\Pi}_{\forall}}
 
 \begin{document}
 
@@ -744,7 +745,12 @@ contexts within terms and types.
   $\Pi\,\Gamma$ to indicate some form of abstraction over each variable in
   $\Gamma$. For example, if $\Gamma = \ann{x_1}{T_1},\ann{x_2}{T_2}$ then
   $\absu{\lambda}{\Gamma}{t} =
-  \abs{\lambda}{x_1}{T_1}{\abs{\lambda}{x_2}{T_2}{t}}$
+  \abs{\lambda}{x_1}{T_1}{\abs{\lambda}{x_2}{T_2}{t}}$. Additionally, we
+  will also write $\piforall\,\Gamma$ to indicate an arbitrary mixture of $\Pi$
+  and $\forall$ quantified variables. Note that \textit{if $\piforall\,\Gamma$
+  occurs multiple times within a definition or inference rule}, the intended
+  interpretation is that \textit{all occurrences have the same mixture of $\Pi$
+    and $\forall$ quantifiers}.
 \item $\lenc{\Gamma}$ denotes the length of $\Gamma$ (the number of variables it
   binds)
 \item We write $s\ \Gamma$ to indicate the sequence of variable arguments in
@@ -778,7 +784,10 @@ $\indast{M}{p}{\Gamma_I}{\Sigma}$, requiring that the kind $\Gamma_{I}(I)$ is a 
 of ★ ensures that $I$ \textit{really does have} $p$ parameters.
 
 \paragraph{Types of Constructors}
-
+% TODO: if you look at the `generation of abstracted inductive definitions', it
+% uses a different format for the types associated with the constructors in
+% \Sigma -- that is the \piforall notation. This section probably should be
+% reworked to that end.
 $T$ is a \textit{type of a constructor of $I$} iff
 \begin{itemize}
 \item it is $I\ s_1 ... s_n$
@@ -960,13 +969,21 @@ inductive definition $\indast{\text{A}}{0}{\Gamma_{I'}}{\Sigma'}$, where
   = \lenc{\vars{T}} = p$)
 
   That is, the kind of $I'$ is the same as the kind of $I\ \vars{T}$
-\item $\Sigma' = \ann{c_1}{T'_1},...,\ann{c_n}{T'_n}$ when $\Sigma =
-  \ann{c'_1}{\absu{\forall}{\Gamma_P}{T_1}},...,\ann{c'_n}{\absu{\forall}{\Gamma_P}{T_n}}$ and $T'_i =
-  [\absu{\lambda}{\Gamma_P}{I'}/I]\ [\vars{T}/\Gamma_P]\ T_i$ for all $i=1..n$
+\item $\Sigma' = \ann{c'_1}{\absu{\forall}{\Gamma_D}
+    { \absu{\piforall}{\Gamma_{A'_1}}{I'\ \Gamma_D} }},...,
+  \ann{c'_n}{\absu{\forall}{\Gamma_D}
+    { \absu{\piforall}{\Gamma_{A'_n}}{I\ \vars{T}\ \Gamma_D} }}$,
 
-  That is, the new signature of constructiors $\Sigma'$ is taken by replacing
-  all occurences of $I\ \Gamma_P$ with $I'$ and instantiating each parameter
-  variable in $\Gamma_P$ with the corresponding parameter of $\vars{T}$
+  when each of the concrete constructors $c_i$ in $\Sigma$ are associated with
+  type $\absu{\forall}{\Gamma_P}{
+    \absu{\forall}{\Gamma_D}{ \absu{\piforall}{\Gamma_{A_i}}{I\ \Gamma_P\
+        \Gamma_D} } }$ and each $\Gamma_{A'_i} =
+  [\absu{\lambda}{\Gamma_P}{I'}/I,\vars{T}/\Gamma_P]\Gamma_{A_i}$.
+
+  That is, trasforming the concrete constructors of the inductive datatype $I$
+  to ``abstracted'' constructors involves replacing each recursive occurrence of
+  $I\ \Gamma_P$ with the fresh type variable $I$, and instantiating each of the
+  parameters $\Gamma_P$ with $\vars{T}$.
 \end{itemize}
 
 Users of Cedilleum will see ``punning'' of the concrete constructors $c_i$ and
@@ -1014,15 +1031,15 @@ we will take more care to distinguish the abstract constructors (see Subsection
             \Gamma_{\text{D}} \to I\ \vars{T}\
             \Gamma_{\text{D}}}},
           \ann{x_{\text{rec}}}{\absu{\forall}{\Gamma_{\text{D}}}{\abs{\Pi}{x}{I'\
-          \Gamma_{\text{D}}}{P'\ \Gamma_{\text{D}}\ x}
+          \Gamma_{\text{D}}}{P\ \Gamma_{\text{D}}\ (x_{\text{to}}\ \Gamma_D\ x)}
           }}
           & \Delta' = \Delta,Hist(\Delta,I,\vars{T},I')
         \end{array}
         \\ \\
         \begin{array}{cc}
-          P' = \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I'\ \Gamma_D}{P\ 
-          \Gamma_D\ (x_{\text{to}}\ \Gamma_D\ x)} }
-          & \wfpat{\Gamma',\Delta'}{\Delta'(I')}{\varnothing}{\mu'(t,P,t_{i=1..n})}
+          % P' = \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \vars{T}\ \Gamma_D}{P\ 
+          % \Gamma_D\ x} }
+          \wfpat{\Gamma',\Delta'}{\Delta'(I')}{\varnothing}{\mu'(t,P,t_{i=1..n})}
         \end{array}
       \end{array}
       }
