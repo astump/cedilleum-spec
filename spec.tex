@@ -35,8 +35,8 @@
 \newcommand{\decchk}{\vdash_{\Downarrow}}
 
 % - inductive
-\newcommand{\mufix}[3]{μ\ #1\ .\ #2\ \{ #3 \}}
-\newcommand{\mumat}[2]{μ'\ #1\ \{#2\} }
+\newcommand{\mufix}[3]{μ\ #1\ .\ #2\ \textbf{\{} #3 \textbf{\}}}
+\newcommand{\mumat}[2]{μ'\ #1\ \textbf{\{}#2\textbf{\}}}
 \newcommand{\wfpat}[4]{WF\!\mhyph\!Pat(#1,#2,#3,#4)}
 \newcommand{\llbrace}{\{\!\{}
 \newcommand{\rrbrace}{\}\!\}}
@@ -50,6 +50,88 @@
 \author{Christopher Jenkins}
 
 \maketitle
+
+\section{Introduction}
+The document describes \textit{Cedilleum}, a general-purpose dependently typed
+programming language with inductive datatypes. Unlike most languages of this
+description, the meta-theory of Cedilleum is \textit{not} based on the Calculus
+of Inductive Constructions\cite{Pa15_Intro-CIC}. Instead, Cedilleum is designed
+so that it may easily be translated to \textit{Cedille Core} -- a compact core
+theory in which induction is derivable for lambda-encoded datatypes -- while
+still providing high-level features like pattern-matching and recursive
+definitions.
+
+Before diving into the details, let us take a bird's-eye view of the language
+and showing some simple example data-type definitions and functions over them.
+
+\subsection{Data-type Declarations}
+\begin{figure}[h]
+\begin{verbatim}
+-- Non-recursive
+data Bool: ★ =
+  | tt: Bool
+  | ff: Bool
+.
+-- Recursive
+data Nat: ★ = 
+  | zero: Nat
+  | succ: Nat ➔ Nat
+.
+-- Recursive, parameterized, indexed
+data Vec (A: ★): Nat ➔ ★ =
+  | vnil : Vec zero
+  | vcons: ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n)
+.
+\end{verbatim}
+  \caption{Definition of natural numbers and length-indexed lists}
+  \label{fig:ex-data-decl}
+\end{figure}
+
+Figure \ref{fig:ex-data-decl} shows two (likely very familiar)
+definitions of inductive datatypes, and modulo differences in syntax should seem
+straightforward to programmers that have used languages like Agda, Idris, or
+Coq. The key things to note are:
+
+\begin{itemize}
+\item In constructor type signatures, recursive occurrences of the inductive
+  data-type being defined (such as in \texttt{suc : \underline{Nat} ➔ Nat}) must
+  be positive, \textit{but not strictly positive}.
+\item In parameterized types (like \texttt{Vec} with parameter \texttt{(A: ★)})
+  occurrences of the inductive type being defined are not written applied to
+  its parameters.
+  
+  For example, the constructor declaration \texttt{vnil : Vec zero} results in
+  the term \texttt{vnil} having type \\ \texttt{∀ A: ★. vnil ·A ★} (with \texttt{·}
+  denoting type application)
+\item In the constructor declaration \texttt{vcons : ∀ n: Nat. A ➔ Vec n ➔ Vec
+    (succ n)}, the argument \texttt{n} is \textit{computationally irrelevant}
+  (also called \textit{erased}). This is because it is introduced by the
+  irrelevant dependent function former \texttt{∀}, as opposed to the relevant
+  \texttt{Π}. More will be said of this when we discuss the type system of
+  Cedilleum.
+\end{itemize}
+
+\subsection{Function Definitions}
+\begin{figure}[h]
+\begin{verbatim}
+-- Non-recursive
+not : Bool ➔ Bool
+  = λ b. μ' b {
+      | tt ↦ ff
+      | ff ↦ tt
+      }.
+-- Recursive
+add : Nat ➔ Nat ➔ Nat
+  = λ n. λ m. μ add-rec. n @(λ x: Nat. Nat) {
+      | zero   ↦ m
+      | succ x ↦ succ (add-rec x)
+      }.
+-- Recursive, parameterized, indexed
+append : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+  = Λ A. Λ m. Λ n. λ xs. λ ys. ●.
+\end{verbatim}
+\end{figure}
+
 
 \section{Syntax}
 \label{sec:syntax}
@@ -98,7 +180,7 @@ definition, whereas \texttt{𝒌myDeff} is only legal as a kind definition.
       & \text{applications}
       \\ & & \mufix{u}{p}{pcase^*}
       & \text{fixed-point and pattern matching}
-      \\ & & \textbf{μ'}\ p\ \textbf{\{} pcase^* \textbf{\}}
+      \\ & & \mumat{p}{pcase^*}
       & \text{simple pattern matching}
       \\ \\ pcase
       & ::= & \textbf{\textbar}\ u\ u^* \mapsto p
@@ -1082,5 +1164,8 @@ $x_{\text{rec}}$.
 \noindent With these definitions, we finish the rule by checking that the
 pattern is well-formed using the augmented local context $\Gamma'$ and context
 of inductive data-type definitions $\Delta'$.
+
+\bibliographystyle{alpha}
+\bibliography{spec}
 
 \end{document}
