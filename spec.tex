@@ -54,17 +54,19 @@
 \section{Introduction}
 The document describes \textit{Cedilleum}, a general-purpose dependently typed
 programming language with inductive datatypes. Unlike most languages of this
-description, the meta-theory of Cedilleum is \textit{not} based on the Calculus
-of Inductive Constructions\cite{Pa15_Intro-CIC}. Instead, Cedilleum is designed
-so that it may easily be translated to \textit{Cedille Core} -- a compact core
+description, the underlying theory of Cedilleum is \textit{not} the Calculus of
+Inductive Constructions (CIC)\cite{Pa15_Intro-CIC}. Instead, Cedilleum is designed so
+that it may easily be translated to \textit{Cedille Core} -- a compact core
 theory in which induction is derivable for lambda-encoded datatypes -- while
 still providing high-level features like pattern-matching and recursive
-definitions.
-
-Before diving into the details, let us take a bird's-eye view of the language
-and showing some simple example data-type definitions and functions over them.
+definitions. That said, the formal specification of Cedilleum as a self-contained
+language has a lot in common with CIC -- see in particular\cite{In18_Coq-Docs},
+which served as the basic template for much of this document's formal development.
 
 \subsection{Data-type Declarations}
+Before diving into the details, let us take a bird's-eye view of the language
+by showing some simple example data-type definitions and functions over them.
+
 \begin{figure}[h]
 \begin{verbatim}
 -- Non-recursive
@@ -86,11 +88,9 @@ data Vec (A: ★): Nat ➔ ★ =
   \caption{Definition of natural numbers and length-indexed lists}
   \label{fig:ex-data-decl}
 \end{figure}
-
-Figure \ref{fig:ex-data-decl} shows two (likely very familiar)
-definitions of inductive datatypes, and modulo differences in syntax should seem
-straightforward to programmers that have used languages like Agda, Idris, or
-Coq. The key things to note are:
+Figure \ref{fig:ex-data-decl} shows some definitions of inductive datatypes, and
+modulo differences in syntax should seem straightforward to programmers that
+have used languages like Agda, Idris, or Coq. The key things to note are:
 
 \begin{itemize}
 \item In constructor type signatures, recursive occurrences of the inductive
@@ -126,9 +126,20 @@ add : Nat ➔ Nat ➔ Nat
       | zero   ↦ m
       | succ x ↦ succ (add-rec x)
       }.
+\end{verbatim}
+\end{figure}
+
+\begin{figure}
+\begin{verbatim}
 -- Recursive, parameterized, indexed
 append : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
-  = Λ A. Λ m. Λ n. λ xs. λ ys. ●.
+  = Λ A. Λ m. Λ n. λ xs. λ ys.
+      μ append-rec. xs @(λ i: Nat. λ zs: Vec ·A i. Vec ·A (add i n)) {
+      | vnil            ↦ ys
+      | vcons -m' x xs' ↦
+         [ zs : Vec ·A (add m' n) = append-rec -m' xs' ] -
+         vcons -(add m' n) x zs
+      }.
 \end{verbatim}
 \end{figure}
 
