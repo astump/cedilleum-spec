@@ -56,13 +56,14 @@
 The document describes \textit{Cedilleum}, a general-purpose dependently typed
 programming language with inductive datatypes. Unlike most languages of this
 description, the underlying theory of Cedilleum is \textit{not} the Calculus of
-Inductive Constructions (CIC)\cite{Pa15_Intro-CIC}. Instead, Cedilleum is designed so
-that it may easily be translated to \textit{Cedille Core} -- a compact core
-theory in which induction is derivable for lambda-encoded datatypes -- while
-still providing high-level features like pattern-matching and recursive
-definitions. That said, the formal specification of Cedilleum as a self-contained
-language has a lot in common with CIC -- see in particular\cite{In18_Coq-Docs},
-which served as the basic template for much of this document's formal development.
+Inductive Constructions (CIC)\cite{Pa15_Intro-CIC}. Instead, Cedilleum is
+designed so that it may easily be translated to \textit{Cedille Core} -- a
+compact core theory in which induction is derivable for lambda-encoded datatypes
+-- while still providing high-level features like pattern-matching and recursive
+definitions. That said, the formal specification of Cedilleum as a
+self-contained language has a lot in common with CIC -- see in particular
+Section 8 of \cite{In18_Coq-Docs}, which served as the basic template for much
+of this document's formal development.
 
 \subsection{Data-type Declarations}
 Before diving into the details, let us take a bird's-eye view of the language
@@ -102,7 +103,7 @@ have used languages like Agda, Idris, or Coq. The key things to note are:
   its parameters.
   
   For example, the constructor declaration \texttt{vnil : Vec zero} results in
-  the term \texttt{vnil} having type \\ \texttt{∀ A: ★. vnil ·A ★} (with \texttt{·}
+  the term \texttt{vnil} having type \\ \texttt{∀ A: ★. Vec ·A ★} (with \texttt{·}
   denoting type application)
 \item In the constructor declaration \texttt{vcons : ∀ n: Nat. A ➔ Vec n ➔ Vec
     (succ n)}, the argument \texttt{n} is \textit{computationally irrelevant}
@@ -116,19 +117,20 @@ have used languages like Agda, Idris, or Coq. The key things to note are:
 \begin{figure}[h]
 \begin{verbatim}
 -- Non-recursive
-not : Bool ➔ Bool
-  = λ b. μ' b {
-      | tt ↦ ff
-      | ff ↦ tt
+ite : ∀ X: ★. Bool ➔ X ➔ X ➔ X
+  = Λ X. λ b. λ then. λ else. μ' b {
+      | tt ↦ then
+      | ff ↦ else
       }.
-iszero : Nat ➔ Bool
+pred : Nat ➔ Nat
   = λ n. μ' n {
-      | zero    ↦ tt
-      | succ n' ↦ ff
+      | zero    ↦ n
+      | succ n' ↦ n'
       }
 -- Recursive
 add : Nat ➔ Nat ➔ Nat
-  = λ n. λ m. μ add-rec. n @(λ x: Nat. Nat) {
+  = λ n. λ m.
+      μ add-rec. n @(λ x: Nat. Nat) {
       | zero   ↦ m
       | succ r ↦ succ (add-rec r)
       }.
@@ -139,55 +141,124 @@ add : Nat ➔ Nat ➔ Nat
 
 Figure \ref{fig:ex-data-fun} shows functions defined over inductive datatypes
 using pattern matching and recursion. The first difference to note between the
-definitions is that \texttt{not} performs ``mere'' pattern matching on its
-argument by using \texttt{μ'}, whereas \texttt{add} uses \texttt{μ} which
-supports combined pattern-matching and fix-point recursion. In \texttt{add},
-\texttt{μ} binds \texttt{add-rec} as the name of the fixpoint function for
-recursion on \texttt{n}. From this alone the reader might expect that
-\texttt{μ'} is merely syntactic sugar for the more verbose \texttt{μ}, but
-actually the difference is a bit more subtle that this, as we will see next.
+definitions is that functions \texttt{ite} and \texttt{pred} perform ``mere''
+pattern matching on their arguments by using \texttt{μ'}, whereas \texttt{add} uses
+\texttt{μ} which provides combined pattern-matching and fix-point recursion. In
+\texttt{add}, \texttt{μ} binds \texttt{add-rec} as the name of the fixpoint
+function for recursion on \texttt{n}. From this alone the reader might expect
+that \texttt{μ'} is merely syntactic sugar for the more verbose \texttt{μ}, but
+actually the difference is a bit more subtle that this, as we will see shortly.
 
-The first major departure of Cedilleum to other languages with inductive
+The first major departure of Cedilleum from other languages with inductive
 datatypes can be seen in the type of \texttt{add-rec}. Ordinarily, its type
 would be \verb;Π x: Nat. Nat; (corresponding to the motive
-\verb;(λ x: Nat. Nat);) -- but in Cedilleum, its type is \verb;Nat/add-rec ➔ Nat;
-(where we read \texttt{Nat/add-rec} as a single identifier)
-and indeed the \texttt{r} bound in the pattern \texttt{succ r} has type
+\verb;(λ x: Nat. Nat);) -- but in Cedilleum, its type is
+\verb;Nat/add-rec ➔ Nat; (where we read \texttt{Nat/add-rec} as a single
+identifier) and by extension for \texttt{add-rec r} to be well-typed, the
+\texttt{r} bound in the pattern \texttt{succ r} must have type
 \texttt{Nat/add-rec} and not the more usual \texttt{Nat}. Why? For recursive
-functions in Cedilleum, \textit{termination is guaranteed by the type system} and
-not by a separate syntactic check for structurally-decreasing arguments.
-The type \texttt{Nat/add-rec} indicates the types of those terms which the
-function \texttt{add-rec} may legally take as arguments without risking
-non-termination, and within a case branch variables of this type are introduced
-in the place of recursive arguments to constructors\footnotemark -- that is,
-\texttt{r} in the pattern \texttt{succ r}. 
-\footnotetext{{More precisely, variables whose type mentions the type
-\texttt{Nat/add-rec} are bound corresponding to constructor arguments that
-mention \texttt{Nat} in their types.}}
+functions in Cedilleum, \textit{termination is guaranteed by the type system}
+and not by a separate syntactic check for structurally-decreasing arguments. The
+type \texttt{Nat/add-rec} indicates the types of those terms which the function
+\texttt{add-rec} may legally take as arguments without risking non-termination,
+and within a case branch variables of this type are introduced in the place of
+recursive arguments to constructors\footnotemark -- that is, \texttt{r} in the
+pattern \texttt{succ r}. In the next subsection, we will see more of how to use
+``recurssive occurence'' types like \texttt{Nat/add-rec}, including how to do
+further pattern matching on them and conversion back to the original type, but
+for now it suffices to consider them an artifice for type-guided termination.
+% \footnotetext{More precisely, the type of every
+% variable bound by a constructor pattern of a case branch introduced by
+% \texttt{μ} has all occurences of $\texttt{I}\ \vars{P}$ replaced by
+% \texttt{I/fixpoint-name}, where $\vars{P}$ are the parameters.}
 
-The type \texttt{Nat/add-rec} (and any such type generated by use of
-\texttt{μ}) comes with some restrictions, which will be made more precise
-further on in the document. Informally, such terms cannot themselves be given to
-\texttt{μ} directly as in `\verb;μ add-rec2. r; ...' and despite the deceptive
-case label `\verb;| suc r ↦ ;...' \texttt{r} cannot be given directly to
-constructor \texttt{succ}, as \texttt{Nat} and \texttt{Nat/add-rec} are distinct
-types. However, even so these two types \textit{are} related to each other, most
-notably in the way they are treated by \texttt{μ'}.
+% The type \texttt{Nat/add-rec} (and any such type generated by use of
+% \texttt{μ}) comes with some restrictions, which will be made more precise
+% further on in the document. Informally, such terms cannot themselves be given to
+% \texttt{μ} directly as in `\verb;μ add-rec2. r; ...' and despite the deceptive
+% case label `\verb;| suc r ↦ ;...' \texttt{r} cannot be given directly to
+% constructor \texttt{succ}, as \texttt{Nat} and \texttt{Nat/add-rec} are distinct
+% types. However, even so these two types \textit{are} related to each other, most
+% notably in the way they are treated by \texttt{μ'} -- terms of type \texttt{Nat}
+% and \texttt{Nat/add-rec} alike support mere pattern matching through \texttt{μ'}.
 
 \begin{figure}[h]
 \begin{verbatim}
 -- Recursive, parameterized, indexed
-append : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
   = Λ A. Λ m. Λ n. λ xs. λ ys.
-      μ append-rec. xs @(λ i: Nat. λ zs: Vec ·A i. Vec ·A (add i n)) {
+      μ vappend-rec. xs @(λ i: Nat. λ zs: Vec ·A i. Vec ·A (add i n)) {
       | vnil            ↦ ys
-      | vcons -m' x xs' ↦
-         [ zs : Vec ·A (add m' n) = append-rec -m' xs' ] -
-         vcons -(add m' n) x zs
+      | vcons -m' x xs' ↦ [ zs = vappend-rec -m' xs' ] - vcons -(add m' n) x zs
       }.
 \end{verbatim}
+  \caption{Dependent functions over inductive datatypes}
+  \label{fig:ex-data-dep}
 \end{figure}
 
+Figure \ref{fig:ex-data-dep} shows the classic dependent function
+\texttt{vappend} over length-indexed lists \texttt{Vec}. Like \texttt{add}, it is
+defined by fixpoint recursion, here over the argument \texttt{xs}, and as with
+\texttt{add-rec} the fixpoint function \texttt{vappend-rec} has type
+\verb;∀ i: Nat. Π zs: Vec/vappend-rec i. Vec ·A (add i n);, where the \texttt{∀}
+indicates that \texttt{i} is an \textit{irrelevant} argument. Note again the
+missing parameter \texttt{A} in the type \texttt{Vec/vappend-rec i} -- this is
+not a typo, but rather an indication that \texttt{A} is ``baked-in'' to the type
+\texttt{Vec/vappend-rec}. Aside from this the two cases of \texttt{append} are
+mostly straightforward: in the \texttt{vnil} branch the expected type is
+\verb;Vec ·A (add zero n); which converts to \verb;Vec ·A n;, so \texttt{ys}
+suffices; in the \texttt{vcons} branch we bind subdata \verb;m': Nat;,
+\verb;x: A;, and \verb;xs': Vec/vappend-rec m';, with \verb;-m'; indicating
+that \verb;m'; is bound \textit{irrelevantly}, then we make a local biding
+\texttt{zs} by invoking \verb;vappend; recursively on \texttt{m'} and
+\texttt{xs'} (where again the \texttt{-m'} indicates \texttt{m'} is an
+\textit{irrelevant} argument) before producing a result whose type is
+convertible with the expected \verb;Vec ·A (add (suc m') n);.
+
+\subsection{Histomorphic Recursion}
+We now return to the strange types \verb;Nat/add-rec; and \verb;Vec/append-rec;.
+The reader may well ask whether they serve any purpose other than marking what
+recursive calls are legal in a function -- and the answer is yes! Cedilleum uses
+types like these to support \textit{histomorphic} or \textit{course-of-values}
+recursion, which is to say recursion schemes that can dig arbitrarily deeply
+into the recursive occurences of data to compute results. As a motivating
+example, Figure \ref{fig:ex-data-div} shows how we can define division on
+natural numbers in Cedilleum.
+
+\begin{figure}[h]
+\begin{verbatim}
+iterate : ∀ R: ★. Nat ➔ (R ➔ R) ➔ R ➔ R
+  = Λ R. λ n. λ f. λ x.
+      μ iterate-rec. n @(λ _: Nat. Nat) {
+      | zero    ↦ r
+      | succ r' ↦ f (iterate-rec r') 
+      }.
+minus : Nat ➔ Nat ➔ Nat
+  = λ m. λ n.
+      μ minus-rec. n @(λ _: Nat. Nat) {
+      | zero   ↦ m
+      | succ r ↦ pred (minus-rec r)
+      }.
+lt : Nat ➔ Nat ➔ Bool
+  = λ m. λ n.
+      μ' (minus m n) {
+      | zero   ↦ ff
+      | succ r ↦ tt
+      }.
+
+divide : Nat ➔ Nat ➔ Nat
+  = λ m. λ n.
+      μ divide-rec. m @(λ _: Nat. Nat) {
+      | zero   ↦ zero
+      | succ r ↦
+         ite (lt (succ (fromNat/divide-rec r)) n) zero
+          ([ pred' = λ x: Nat/divide-rec. μ' x {| zero ↦ x | succ x' ↦ x'}
+           ] - succ (divide-rec (iterate (pred n) pred' r)))
+      }
+\end{verbatim}
+  \caption{Histomorphic recursion and division}
+  \label{fig:ex-data-div}
+\end{figure}
 
 \section{Syntax}
 \label{sec:syntax}
