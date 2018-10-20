@@ -110,7 +110,8 @@ have used languages like Agda, Idris, or Coq. The key things to note are:
   (also called \textit{erased}). This is because it is introduced by the
   irrelevant dependent function former \texttt{∀}, as opposed to the relevant
   function former \texttt{Π}. More will be said of this when we discuss the type
-  system of Cedilleum.
+  system of Cedilleum, but for now it suffices to say that this idea comes from
+  the \textit{Implicit Calculus of Constructions}\cite{Mi01_ICC}
 \end{itemize}
 
 \subsection{Function Definitions}
@@ -162,8 +163,8 @@ and not by a separate syntactic check for structurally-decreasing arguments. The
 type \texttt{Nat/add-rec} indicates the types of those terms which the function
 \texttt{add-rec} may legally take as arguments without risking non-termination,
 and within a case branch variables of this type are introduced in the place of
-recursive arguments to constructors\footnotemark -- that is, \texttt{r} in the
-pattern \texttt{succ r}. In the next subsection, we will see more of how to use
+recursive arguments to constructors -- that is, \texttt{r} in the
+pattern \texttt{succ r}. In Section \ref{sec:hist-rec}, we will see more of how to use
 ``recursive occurence'' types like \texttt{Nat/add-rec}, including how to do
 further pattern matching on them and perform conversion back to the original
 type. For now it suffices to consider them an artifice for type-guided
@@ -217,6 +218,7 @@ that \verb;m'; is bound \textit{irrelevantly}, then we make a local biding
 convertible with the expected \verb;Vec ·A (add (suc m') n);.
 
 \subsection{Histomorphic Recursion}
+\label{sec:hist-rec}
 \begin{figure}[h]
 \begin{verbatim}
 iterate : ∀ R: ★. Nat ➔ (R ➔ R) ➔ R ➔ R
@@ -241,10 +243,11 @@ divide : Nat ➔ Nat ➔ Nat
   = λ m. λ n.
       μ divide-rec. m @(λ _: Nat. Nat) {
       | zero   ↦ zero
-      | succ r ↦
-         ite (lt (succ (fromNat/divide-rec r)) n) zero
-          ([ pred' = λ x: Nat/divide-rec. μ' x {| zero ↦ x | succ x' ↦ x'}
-           ] - succ (divide-rec (iterate (pred n) pred' r)))
+      | succ r ↦ [ m' = succ (fromNat/divide-rec r) ]
+        - ite (lt m' n) zero
+           ([ pred' = λ x: Nat/divide-rec.
+                μ' x {| zero ↦ x | succ x' ↦ x'} ]
+            - succ (divide-rec (iterate (pred n) pred' r)))
       }.
 \end{verbatim}
   \caption{Histomorphic recursion and division}
@@ -256,12 +259,40 @@ recursive calls are legal in a function -- and the answer is yes! Cedilleum uses
 types like these to support \textit{histomorphic} or \textit{course-of-values}
 recursion, which is to say recursion schemes that can dig arbitrarily deeply
 into the recursive occurences of data to compute results. As a motivating
-example, Figure \ref{fig:ex-data-div} shows how we can define division on
-natural numbers in Cedilleum using histomorphic recursion.
+example, we now show how we can define division on natural numbers in Cedilleum
+using histomorphic recursion.
 
 Languages with inductive datatypes and recursive function definitions that also
 wish to have their type systems interpreted as sound logics must address the
-issue of \textit{termination}.
+issue of \textit{termination}, because the principle of general recursion
+\verb;∀ A: ★. (A ➔ A) ➔ A; allows any one to inhabit every type. To that end,
+most such languages perform some terminiation check separate from type checking
+that usually involves making sure that arguments to recursive calls are
+getting \textit{structurally smaller} to ensure that eventually a base case is
+reached. This check is necessarily conservative (i.e. it will not accept some
+terminating function), and the classic example of a function that is not
+``obviously'' terminating is division on natural numbers by iterated
+subtraction. Intuitively, we understand that subtracting \texttt{n} from
+\texttt{m} never produces a number larger than \texttt{m} -- but it can be
+tricky to explain this to the termination checker!
+
+The definition of division is given in Figure \ref{fig:ex-data-div}. We start by
+defining some straightforward preliminaries: \texttt{iterate} to apply a
+function some number of times to a base case, \texttt{minus} for subtraction,
+and \texttt{lt} a (boolean) predicate testing whether its first argument is less
+than its second. In \texttt{divide} we kick off recursion on the numerator
+\texttt{m}, and in the base case where it is \texttt{zero} we return
+\texttt{zero}. When it is non-zero, we locally define \texttt{m'} by using
+\texttt{fromNat/divide-rec} to cast the sub-data \texttt{r} of type
+\texttt{Nat/divide-rec} back to \texttt{Nat}, where \texttt{fromNat/divide-rec}
+is automatically in-scope of the body of the \texttt{μ} definition. We then use
+\texttt{ite} (mnemonic for ``if-then-else'') to see whether our current
+numerator \texttt{m'} is less than the denominator, and if so return
+\texttt{zero}.
+
+The real action happens when the current numerator is larger than our
+denominator, as we must make a recursive call to \texttt{divide-rec} after
+subtracting (via iterated predecessor) \texttt{n} from \texttt{m'}.
 
 \section{Syntax}
 \label{sec:syntax}
