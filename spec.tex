@@ -292,7 +292,18 @@ numerator \texttt{m'} is less than the denominator, and if so return
 
 The real action happens when the current numerator is larger than our
 denominator, as we must make a recursive call to \texttt{divide-rec} after
-subtracting (via iterated predecessor) \texttt{n} from \texttt{m'}.
+subtracting (via iterated predecessor) \texttt{n} from \texttt{m'}. We declare a
+version of predecessor \texttt{pred'} to operator over a term of type
+\texttt{Nat/divide-rec} and define it in terms of \texttt{μ'}. This is the key
+to enabling histomorphic recursion -- \texttt{μ'} allows for pattern matching on
+both the ``concrete'' \texttt{Nat} and ``abstracted'' \texttt{Nat/divide-rec}
+and can be iterated arbitrarily (here \texttt{pred n} times), but it 
+\textit{cannot} be used to kick off its own recursion and \textit{cannot}
+produce terms of the recursion-abstracted type \texttt{Nat/divide-rec} that is
+larger than its input. Having define \texttt{pred'} this way, the rest of the
+definition is straightforward: recursively call \texttt{divide-rec} after
+performing ``abstracted'' subtraction via iterated predecessor on our
+denominator (\texttt{iterate (pred n) pred' r}), and increment the result.
 
 \section{Syntax}
 \label{sec:syntax}
