@@ -269,7 +269,7 @@ Languages with inductive datatypes and recursive function definitions that also
 wish to have their type systems interpreted as sound logics must address the
 issue of \textit{termination}, because the principle of general recursion
 \verb;∀ A: ★. (A ➔ A) ➔ A; allows one to inhabit every type -- including ones we
-want to be uninhabited!. To that end, most such languages perform some
+want to be uninhabited! To that end, most such languages perform some
 terminiation check separate from type checking that usually involves making sure
 that arguments to recursive calls are getting \textit{structurally smaller} to
 ensure that eventually a base case is reached. This check is necessarily
