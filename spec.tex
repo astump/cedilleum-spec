@@ -133,7 +133,7 @@ add : Nat ➔ Nat ➔ Nat
   = λ n. λ m.
       μ add-rec. n @(λ x: Nat. Nat) {
       | zero   ↦ m
-      | succ r ↦ succ (add-rec r)
+      | succ p ↦ succ (add-rec p)
       }.
 \end{verbatim}
   \caption{Functions over inductive datatypes}
@@ -156,8 +156,8 @@ datatypes can be seen in the type of \texttt{add-rec}. Ordinarily, its type
 would be \verb;Π x: Nat. Nat; (corresponding to the motive
 \verb;(λ x: Nat.Nat);) -- but in Cedilleum, its type is \verb;Nat/add-rec ➔ Nat;
  (where we read \texttt{Nat/add-rec} as a single identifier) and by extension
-for the expression \texttt{add-rec r} to be well-typed, the \texttt{r} bound in
-the pattern \texttt{succ r} must have type \texttt{Nat/add-rec} and not the more
+for the expression \texttt{add-rec p} to be well-typed, the \texttt{p} bound in
+the pattern \texttt{succ p} must have type \texttt{Nat/add-rec} and not the more
 usual \texttt{Nat}. The type \texttt{Nat/add-rec} is \textit{automatically
 generated} by Cedilleum by combining the name of the inductive datatype
 \texttt{Nat} with the of the function \texttt{add-rec} bound by \texttt{μ}. Why?
@@ -167,7 +167,7 @@ arguments. The type \texttt{Nat/add-rec} indicates the types of those terms
 which the function \texttt{add-rec} may legally take as arguments without
 risking non-termination, and within a case branch variables of this type are
 introduced in the place of recursive arguments to constructors -- that is,
-\texttt{r} in the pattern \texttt{succ r}. In Section \ref{sec:hist-rec}, we
+\texttt{p} in the pattern \texttt{succ p}. In Section \ref{sec:hist-rec}, we
 will see more of how to use ``recursive occurence'' types like
 \texttt{Nat/add-rec}, including how to do further pattern matching on them and
 perform conversion back to the original type. For now it suffices to consider
@@ -342,14 +342,50 @@ function has been pushed into the constructor arguments. (In general, for
 non-strictly positive data types the functional sub-data for such constructors
 is $\eta$-expanded in the motive until the cast has a target to apply to). Here,
 we first invoke \texttt{ih} to produce \texttt{eq} of type
-\verb;{add (fromNat/ih r) zero ≃ fromNat/ih r};. Next, we need to get the type
-system to β-reduce the expected type a bit so we check the remainder of branch
-with χ against the type \verb;{succ (add (fromNat/ih r) zero) ≃ succ (fromNat/ih r)};,
-which is convertible with the expected type (note that the difference is that
-constructor \texttt{succ} has been pushed outside of the call to \texttt{add}).
-Finally, we can use ρ to rewrite \textit{this} expected type by the
-equality \texttt{eq}, producing expected type \verb;{succ (fromNat/ih r) ≃ succ (fromNat/ih r)};
-which is true β, the reflexivity rule for equality.
+\verb;{add (fromNat/ih r) zero ≃ fromNat/ih r};. Next, we need to get the type system to
+β-reduce the expected branch type a bit so that we can rewrite by \texttt{eq}. To that
+end, we check the remainder of branch with χ against the type
+\verb;{succ (add (fromNat/ih r) zero) ≃ succ (fromNat/ih r)};, which is convertible with the
+expected type (note that the difference is that constructor \texttt{succ} has
+been pushed outside of the call to \texttt{add}). Finally, we can use ρ to
+rewrite \textit{this} expected type by the equality \texttt{eq}, producing
+expected type \verb;{succ (fromNat/ih r) ≃ succ (fromNat/ih r)}; which is true
+β, the reflexivity rule for equality.
+
+\subsection{Reduction Rules of μ and μ'}
+In the preceding section there was a tiny white lie. The expected type
+corresponding to the branch \texttt{succ r} is \texttt{\{add (succ (fromNat/ih
+  r)) zero ≃ succ (fromNat/ih r)\}}, and we \textit{said} we used the type annotation
+construct \texttt{χ} to get this to β-reduce to a suitable type. However, using
+β-reduction alone, the normalized branch type is actually
+\begin{verbatim}
+{ succ (μ add-rec. (fromNat/ih r)) {
+    | zero   ↦ zero
+    | succ p ↦ succ (add-rec p)
+  } ≃ succ (fromNat/ih r)
+}
+\end{verbatim}
+First, the arguments \texttt{succ (fromNat/ih r)} and \texttt{zero} are
+substituted into the body of \texttt{add}. Then, we note that the scrutinee
+\texttt{succ (fromNat/ih r)} of μ matches one of the given branches (the
+\texttt{succ} branch), so by what is known as δ-reduction we replace the entire
+μ expression with the branch body, substituting the variable \texttt{p} bound at
+the branch with the value \texttt{(fromNat/ih r)}. Constructs μ and \texttt{μ'}
+have this δ-reduction in common, and if we were normalzing a \texttt{μ'}
+expression this would be the end of the reduction step. For μ however, if we
+just stopped here we would have a problem -- the result of substitution would be
+\texttt{succ (add-rec (fromNat/ih r))}, but \texttt{add-rec} was bound by the
+\texttt{μ} expression we just removed! This is remedied by substituting it away
+for the original μ expression, producing the expected type given above.
+
+There is one more form of reduction that may surprise the reader, and that is
+the behavior of the generated μ-bound casting functions like
+\texttt{fromNat/ih}. The expression \texttt{fromNat/ih r} actually reduces, in a
+single step, to \texttt{r}! This may seem quite strange, as these two
+expressions do not even have the same type, but Cedilleum (like Cedille) is an
+extrinsic type theory in which a single (untyped) term can be given ascribed
+types and in which type preservation does not hold. For more on this, see
+\cite{St18_Cedille-Syntax-Semantics}.
 
 \section{Syntax}
 \label{sec:syntax}
@@ -375,14 +411,15 @@ which is true β, the reflexivity rule for equality.
   \label{fig:identifiers}
 \end{figure}
 
-Figure \ref{fig:identifiers} gives the metavariables used in our grammar for
+We now turn to a more formal treatment of Cedilleum. Figure
+\ref{fig:identifiers} gives the metavariables used in our grammar for
 identifiers. We consider all identifiers as coming from two distinct lexical
 ``pools'' -- regular identifiers (consisting of identifiers $id$ given for
 modules and definitions, term variables $u$, and type variables $X$) and kind
-identifiers $\kappa$. In Cedilleum source files (as in the parent language Cedille)
-kind variables should be literally prefixed with $\kappa$ -- the suffix can be
-any string that would by itself be a legal non-kind identifier. For example,
-\texttt{myDef} is a legal term / type variable and a legal name for a
+identifiers $\kappa$. In Cedilleum source files (as in the parent language
+Cedille) kind variables should be literally prefixed with $\kappa$ -- the suffix
+can be any string that would by itself be a legal non-kind identifier. For
+example, \texttt{myDef} is a legal term / type variable and a legal name for a
 definition, whereas \texttt{𝒌myDeff} is only legal as a kind definition.
 
 \paragraph{Untyped Terms}
@@ -517,8 +554,8 @@ data List (A : ★) : ★ =
   | cons : A ➔ List ➔ List
   .
 data Vec (A : ★) : Nat ➔ ★ =
-  | vnil  : ∀ n : Nat . {n ≃ zero} ➾ Vec n
-  | vcons : ∀ n : Nat . ∀ m : Nat . A ➔ Vec n ➔ {m ≃ suc n} ➾ Vec m
+  | vnil  : Vec zero
+  | vcons : ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n)
   .
 \end{verbatim}
 
@@ -685,18 +722,16 @@ matching. Each operator will be discussed in more detail in Section
 merely to give a better idea of the syntax of the language.
 
 \begin{verbatim}
-isvnil : ∀ A : ★ . ∀ n : Nat . Vec · A n ➔ Bool
-       = Λ A . Λ n . λ xs .
-           μ' xs @(Λ n . λ xs . Bool)
-              { | vnil -n -eq ↦ tt
-                | vcons -n -m x xs -eq ↦ ff
-              }
-vlength : ∀ A : ★ . ∀ n : Nat . Vec · A n ➔ Nat
-        = Λ A . Λ n . λ xs .
-            μ len . xs @(Λ n . λ x . Nat)
-              { | vnil -n -eq ↦ zero
-                | vcons -n -m x xs -eq ↦ suc (len -n xs)
-              }
+isvnil : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ Bool
+       = Λ A. Λ n. λ xs. μ' xs @(Λ n . λ xs . Bool) {
+           | vnil          ↦ tt
+           | vcons -n x xs ↦ ff
+           }.
+vlength : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ Nat
+        = Λ A. Λ n. λ xs. μ len . xs @(Λ n . λ x . Nat) {
+            | vnil          ↦ zero
+            | vcons -n x xs ↦ suc (len -n xs)
+            }.
 \end{verbatim}
 
 \section{Erasure}
@@ -710,7 +745,6 @@ vlength : ∀ A : ★ . ∀ n : Nat . Vec · A n ➔ Nat
     \\ |\beta\ \{t\}| & = & |t|
     \\ |\delta\ t| & = & |t|
     \\ |\chi\ T^? \textbf{-}\ t| & = & |t| 
-    \\ |\theta\ t\ t'^*| & = & |t|\ |t'^*| 
     \\ |\varsigma\ t| & = & |t|
     \\ |t\ t'| & = & |t|\ |t'|
     \\ |t\ \mhyph t'| & = & |t| 
@@ -733,7 +767,7 @@ vlength : ∀ A : ★ . ∀ n : Nat . Vec · A n ➔ Nat
     \\ \\ |id\ vararg^* \mapsto t| & = & id\ |vararg^*|\ \mapsto |t|
     \\ 
     \\ |\mhyph u| & = & 
-    \\ |\cdot T|  & = &
+    \\ |\cdot X|  & = &
   \end{array}
   \]
   \caption{Erasure for annotated terms}
@@ -884,10 +918,6 @@ of pure terms.
       & \infer[\footnotemark]
         { \Gamma \decchk \delta\ \mhyph\ t : T }
         { \Gamma \decchk t : \{ \texttt{tt}\ \simeq\ \texttt{ff} \}}
-      \\ \\ \infer
-      { \Gamma \decchk \theta\ t\ t'^* : T }
-      { \Gamma \decsyn t : \texttt{??}
-        & \Gamma \vdash_? t'^* : \texttt{??} }
     \end{array}
   \]
   \caption{Type checking \fbox{$\Gamma \decdir s : C$} (sans inductive datatypes)}
@@ -922,13 +952,8 @@ expression erases to $|t_2|$). The last rule involving equality is for δ, which
 witnesses the logical principle \textit{ex falso quodlibet} -- if a certain
 impossible equation is proved (namely that the two Church-encoded booleans
 \texttt{tt} and \texttt{ff} are equal), then \textit{any} type desired is
-inhabited.
-
-The two remaining primitives are not essential to the theory but are useful
-additions for programmers. The rule for χ allows the user to provide an
-explicit top-level annotation for a term, and θ embodies ``elimination with a
-motive'', using the expected type of an application to infer some type
-arguments. (TODO)
+inhabited. The remaining primitive χ allows the user to provide an
+explicit top-level annotation for a term.
 
 \section{Inductive Datatypes}
 
@@ -968,8 +993,8 @@ Section \ref{sec:syntax}. These will be represented in the AST as
 \\
 \[\indast{\text{C}}{1}{Vec : ★ ➔ Nat ➔ ★}
 {\begin{array}{lcl}
-   vnil & : & ∀ A : ★ . ∀ n : Nat . \{ n ≃ zero \} ➾ Vec \cdot A\ n
-   \\ vcons & : & ∀ A : ★ . ∀ n : Nat . ∀ m : Nat . A ➔ Vec \cdot A\ n ➔ \{ m ≃ succ\ n \} ➾ Vec \cdot A\ m
+   vnil & : & ∀ A: ★.Vec \cdot\!A\ zero
+   \\ vcons & : & ∀ A: ★. ∀ n :Nat. A ➔ Vec \cdot\!A\ n ➔ Vec \cdot\!A\ (succ\ n)
  \end{array}
 }\]
 
@@ -994,8 +1019,9 @@ $\mu'(t,P,t_{i=1..n})$ and
 $\mu(x_{\text{rec}},I',x_{\text{to}},t,P,t_{i=1..n})$. Translation from the form
 given in the grammar to this form is discussed in detail below, but is as
 expected. In particular, we enforce that patterns are exhaustive and
-non-overlapping, and that $I'$ and $x_{\text{to}}$ (which are not present in the grammar
-but an automatically generated identifier) are fresh w.r.t the global and local
+non-overlapping, and that $I'$ and $x_{\text{to}}$ (which correspond to the
+automatically generated identifiers like \texttt{Nat/ih} and \texttt{fromNat/ih}
+from the introduction) are fresh w.r.t the global and local
 context. For example, consider the pattern-matches given in the code listings
 for \texttt{isvnil} and \texttt{vlength} above. These would be translated into
 the AST as
@@ -1003,22 +1029,24 @@ the AST as
 \[
   \mu'(xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Bool}},
   \begin{array}{l}
-    \absu{\Lambda}{n}{\absu{\Lambda}{eq}{tt}}
-    \\ \absu{\Lambda}{n}{\absu{\Lambda}{m}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\absu{\Lambda}{eq}{ff}}}}}
+    \absu{\texttt{tt}}
+    \\ \absu{\Lambda}{n}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\texttt{ff}}}}
   \end{array}
   )
 \] and
-\[ \mu(len, Vec/len, toVec/len,xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Nat}},
+\[ \mu(len, Vec/len, fromVec/len,xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Nat}},
   \begin{array}{l}
-    \absu{\Lambda}{n}{\absu{\Lambda}{eq}{zero}}
-    \\ \absu{\Lambda}{n}{\absu{\Lambda}{m}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\absu{\Lambda}{eq}{suc\
-    (len\ \mhyph n\ xs)}}}}}
+    \texttt{zero}
+    \\ \absu{\Lambda}{n}{\absu{\lambda}{x}{\absu{\lambda}{xs}{succ\ (len\ \mhyph
+    n\ xs)}}}
+    % \absu{\Lambda}{n}{\absu{\Lambda}{m}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\absu{\Lambda}{eq}{suc\
+    % (len\ \mhyph n\ xs)}}}}}
   \end{array})
 \]
 
 \noindent In general, the generated name for $I'$ and $x_{\text{to}}$ that users
-will write in Cedilleum programs will be of the form ``$I\text{/}x_{\text{rec}}$''
-and ``$\text{to}I\text{/}x_{\text{rec}}$''.
+will write in Cedilleum programs will be of the form ``$I\texttt{/}x_{\text{rec}}$''
+and ``$\texttt{from}I\texttt{/}x_{\text{rec}}$''.
 
 For a pattern construct ($\mu$ or $\mu'$) in the AST to be well-formed, it must satisfy the
 following conditions (each of which is, again, explained in more detail in
