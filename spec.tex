@@ -309,6 +309,7 @@ performing ``abstracted'' subtraction via iterated predecessor on our
 denominator (\texttt{iterate (pred n) pred' r}), and increment the result.
 
 \subsection{Reasoning via Induction}
+\label{sec:induction}
 \begin{figure}[h]
 \begin{verbatim}
 add-zero-r : Π m: Nat. {add m zero ≃ m}
@@ -338,9 +339,9 @@ As for the branches, in the base case \texttt{zero} the required branch type is
 the usual \verb;{add zero zero ≃ zero}; which comes from simple β-reduction. In
 the step case \texttt{succ r} the required branch type is more subtle --
 \verb;{add (succ (fromNat/ih r)) zero ≃ succ (fromNat/ih r)};, where the cast
-function has been pushed into the constructor arguments. (In general, for
-non-strictly positive data types the functional sub-data for such constructors
-is $\eta$-expanded in the motive until the cast has a target to apply to). Here,
+function has been pushed into the constructor arguments. (In general the
+sub-data for such constructors is $\eta$-expanded in the motive until the cast
+has a target to apply to -- see Section \ref{sec:positive-data} for more). Here,
 we first invoke \texttt{ih} to produce \texttt{eq} of type
 \verb;{add (fromNat/ih r) zero ≃ fromNat/ih r};. Next, we need to get the type system to
 β-reduce the expected branch type a bit so that we can rewrite by \texttt{eq}. To that
@@ -386,6 +387,69 @@ expressions do not even have the same type, but Cedilleum (like Cedille) is an
 extrinsic type theory in which a single (untyped) term can be given ascribed
 types and in which type preservation does not hold. For more on this, see
 \cite{St18_Cedille-Syntax-Semantics}.
+
+\subsection{Non-strictly Positive Datatypes}
+\label{sec:positive-data}
+In the preceeding sections, we have that seen ``cast'' functions like
+\texttt{Nat/ih} (in Figure \ref{fig:ex-data-ind}) show up in the the expected
+type of a case branch, and also have noted already that Cedilleum allows for
+positive but not strictly positive data type defintions. We now take a look at
+how these two things interact.
+
+\begin{figure}[h]
+\begin{verbatim}
+data PTree : ★ =
+  | leaf : PTree
+  | node : ((PTree ➔ Bool) ➔ PTree) ➔ PTree
+.
+PTreeSel : ★ = (PTree ➔ Bool) ➔ PTree.
+indTree : ∀ P: PTree ➔ ★.
+    P leaf ➔ (∀ s: PTreeSel. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s))
+    ➔ Π t: PTree. P t
+  = Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
+      | leaf   ↦ base
+      | node s ↦
+        [ conv-p : (PTree ➔ Bool) ➔ PTree/ih ➔ Bool
+          = λ p. λ r. p (fromPTree/ih r) ]
+        - [ s' : PTreeSel = λ p. fromPTree/ih (s (conv-p p)) ]
+        - step -s' (λ p. ih (s (conv-p p)))
+      }.
+\end{verbatim}
+  \caption{A non-strictly positive infinitary tree}
+  \label{fig:ptree}
+\end{figure}
+
+Figure \ref{fig:ptree} presents a definition of \texttt{PTree}, an infinitary
+tree which is not strictly positive in the \texttt{node} constructor, and a
+proof of induction for it using μ. One intuition for what kind of terms inhabit
+\texttt{PTree} is ``at a \texttt{node}, there must be some way of selecting one
+\texttt{PTree} (of infinitely many) from some partition \texttt{PTree ➔ Bool}''.
+The branch given by pattern \texttt{leaf} is the \texttt{base} case, requring a
+proof of \texttt{P leaf} which we have by assumption. For the \texttt{step} case
+given by the branch for pattern \texttt{node}, the expected type is the trickier
+\texttt{P (node s')}, where \texttt{s'} is defined as above. Recall that in our
+branch the constructor arguments have all recursive occurences of their
+inductive type replaced with a special ``abstracted'' version. In the case of
+\texttt{leaf}, the subdata \texttt{s} has type \texttt{(PTree/ih ➔ Bool) ➔
+PTree/ih}. The the naive expected branch type \texttt{P (node s)} given by
+simply substituting the pattern in for the bound \texttt{x} given in the motive
+is not well-kinded! To fix this we $\eta$-expand and cast using \texttt{fromPTree/ih}
+as needed to produce the appropriate expected type.
+
+Now we examine the body of the \texttt{node} branch itself more closely. First,
+we need a way to convert any ``partition'' \texttt{p} of type \texttt{PTree ➔
+  Bool} to \texttt{PTree/ih ➔ Bool} so that it can operate over terms of the abstracted
+type. With this we can do the same for our selector \texttt{s}, producing
+\texttt{s'}. Finally, we invoke \texttt{step} so that we can have prove
+\texttt{P (node s')} as desired. The second argument of \texttt{step} requires a
+proof that \texttt{P (s' p)} holds for any \texttt{p}. To show this, we take the
+assumed \texttt{p}, ``weaken'' it to work over the abstracted recursive types
+with \texttt{conv-p}, and pass this to \texttt{s} (and not \texttt{s'}!) to
+produce a value of type \texttt{PTree/ih} suitable for consumption by
+\texttt{ih}, which has type \texttt{Π t: PTree/ih. P (fromPTree/ih t)}. Note
+again that the proof we need to give here, \texttt{P (s' p)}, is convertible
+with the proof \texttt{P (fromPTree/ih (s (conv-p p)))} that the call to
+\texttt{ih} actually returns.
 
 \section{Syntax}
 \label{sec:syntax}
