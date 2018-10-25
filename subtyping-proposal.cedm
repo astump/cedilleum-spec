@@ -1,0 +1,69 @@
+module Subtyping.
+
+data Nat : ★ =
+  | zero : Nat
+  | succ : Nat ➔ Nat
+  .
+
+-- proposal: bounded polymorphism for *only* abstracted and concrete inductive
+-- types 
+pred : ∀ R <: Nat. R ➔ R
+  = Λ R. λ n. μ' n {| zero ↦ zero | succ n ↦ n }.
+
+-- lets you see that minus, pred are decreasing their arguments
+minus : ∀ R <: Nat. R ➔ Nat ➔ R
+  = Λ R. λ m. λ n. μ rec. n @(λ x: Nat. R) {
+    | zero   ↦ n
+    | succ r ↦ pred (rec r)
+    }.
+
+lt : Nat ➔ Nat ➔ Bool
+  = λ m. λ n. μ' (minus (succ m) n) {
+    | zero   ↦ tt
+    | succ r ↦ ff
+    }.
+
+-- in the conditional of ite below, `succ r` automatically promotes r of type
+-- Nat/rec to Nat. But r' still has type Nat/ih
+
+divide : Nat ➔ Nat ➔ Nat
+  = λ m. λ n. μ rec. m @(λ x: Nat. Nat) {
+    | zero   ↦ zero
+    | succ r ↦ ite (lt (succ r) n) zero
+        ([r' = minus r (pred m)]
+        - succ (rec r'))
+    }.
+
+-- helps in reasoning by induction, too!
+
+add : Nat ➔ Nat ➔ Nat
+  = λ m. λ n. μ rec. m @(λ x: Nat. Nat) {
+    | zero   ↦ n
+    | succ r ↦ succ (rec r)
+    }.
+
+-- we reasoning by induction, the expected branch types are now as expected
+add-zero-r : Π m: Nat. {add m zero ≃ m}
+  = λ m. μ ih. m @(λ x: Nat. {add x zero ≃ x}) {
+    | zero   ↦ β       -- Expected: {add zero zero ≃ zero}
+    | succ r ↦         -- Expected: {add (succ r) zero ≃ succ r}
+        ρ+ (ih r) - β  -- ih r : {add r zero ≃ r}
+    }.
+
+-- last example, and very compelling
+data PTree (A : ★) : ★ =
+  | node : A ➔ PTree
+  | leaf : ((PTree ➔ Bool) ➔ PTree) ➔ PTree
+  .
+
+indPTree : ∀ A: ★. ∀ P: PTree ·A ➔ ★.
+    (∀ a: A. P (node a)) ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s))
+    ➔ Π t: PTree. P t
+  = Λ A. Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
+    | leaf   ↦ base -- Expected: P leaf
+    | node s ↦      -- Expected: P (node s)
+        step -s (λ p. ih (s p)) -- P (node s)
+    }.
+-- Note that in the invocation of `step`, the selector `s` is used at two
+-- different types: as the first argument to step it has type (PTree ➔ Bool) ➔
+-- PTree, and in the second argument it has type (PTree ➔ Bool) ➔ PTree/ih

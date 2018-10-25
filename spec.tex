@@ -313,7 +313,7 @@ denominator (\texttt{iterate (pred n) pred' r}), and increment the result.
 \begin{figure}[h]
 \begin{verbatim}
 add-zero-r : Π m: Nat. {add m zero ≃ m}
-  = λ m. μ' ih. m @(λ x: Nat. {add x zero ≃ x}) {
+  = λ m. μ ih. m @(λ x: Nat. {add x zero ≃ x}) {
          | zero   ↦ β
          | succ r ↦ [eq = ih r]
              - χ {succ (add (fromNat/ih r) zero) ≃ succ (fromNat/ih r)}
