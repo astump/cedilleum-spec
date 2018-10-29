@@ -42,6 +42,7 @@
 \newcommand{\llbrace}{\{\!\{}
 \newcommand{\rrbrace}{\}\!\}}
 \newcommand{\piforall}{^{\Pi}_{\forall}}
+\newcommand{\reduce}{\ensuremath{\rightsquigarrow}}
 
 \begin{document}
 
@@ -490,19 +491,19 @@ definition, whereas \texttt{𝒌myDeff} is only legal as a kind definition.
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      p
-      & ::= & u
+      f, p
+      & ::= & u,v,c
       & \text{variables}
       \\ & & \absu{\textbf{λ}}{u}{p}
       & \text{functions}
-      \\ & & p\ p
+      \\ & & f\ p
       & \text{applications}
       \\ & & \mufix{u}{p}{pcase^*}
       & \text{fixed-point and pattern matching}
       \\ & & \mumat{p}{pcase^*}
       & \text{simple pattern matching}
       \\ \\ pcase
-      & ::= & \textbf{\textbar}\ u\ u^* \mapsto p
+      & ::= & \textbf{\textbar}\ u\ u^* \mapsto f
     \end{array}
   \]
   \caption{Untyped terms}
@@ -607,12 +608,10 @@ data Bool : ★ =
   | tt : Bool
   | ff : Bool
   .
-
 data Nat : ★ =
   | zero : Nat
   | suc  : Nat ➔ Nat
   .
-
 data List (A : ★) : ★ =
   | nil  : List
   | cons : A ➔ List ➔ List
@@ -708,10 +707,9 @@ incomplete.
 module DepCast .
 
 CastE ◂ Π A : ★ . (A ➔ ★) ➔ ★ = ● .
-
 castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a = ● .
 \end{verbatim}
-
+  
 \paragraph{Annotated Terms}
 \begin{figure}[h]
   \[
@@ -798,7 +796,7 @@ vlength : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ Nat
             }.
 \end{verbatim}
 
-\section{Erasure}
+\section{Erasure and Reduction}
 
 \begin{figure}[h]
   \[
@@ -845,6 +843,48 @@ indicate that any type or erased arguments in the the zero or more $vararg$'s of
 pattern-match case are indeed erased. The additional constructs introduced in
 the annotated term language such as β, φ, and ρ, are all erased to the language
 of pure terms.
+
+Reduction rules are defined for the untyped term language. In essence, to run a
+Cedilleum program you first erase it, then reduce it.
+
+\paragraph{$\beta$-reduction}
+\[ (\absu{\lambda}{x}{p_1})\ p_2 \reduce_{\beta} [p_2/x]p_1 \]
+
+The rule for $\beta$-reduction is standard: those expressions consisting of a
+$\lambda$-abstraction as the left component of an application reduce by having
+their bound variable substituted away by the given argument (where $[p_2/x]$ is
+the simultaneous and capture-avoiding substitution of $p_2$ for $x$)
+
+\paragraph{$\mu'$-reduction}
+\[ \mu'\ (c_i\ p_1 ... p_n)\ \{...\ | c_i\ u_1 ... u_n \mapsto f\ |...\}
+  \reduce_{\mu'} [p_1 ... p_n/u_1 ... u_n]f\]
+
+$\mu'$-reduction is a simple pattern-matching reduction rule: if the scrutinee
+of $\mu'$ is some variable-headed application $c_i\ p_1 ... p_n$ where the head
+$c_i$ matches one of the branch patterns, replace the entire expression with the
+branch body $f$ after substituting each of the bound variables of the branch
+pattern $u_1 ... u_n$ with the scrutinee's arguments $p_1 ... p_n$
+
+\paragraph{$\mu$-reduction}
+\[ \infer[\mu]
+  { \mu\ u. (c\ p_1 ... p_n)\ \{ c_i\ u_{i1} ... u_{ij_i} \mapsto f_i
+    \}_{i=1..n} \reduce_{\mu} [p_1 ... p_n/u_1 ... u_n][u/p_{\mu}]f}
+  {
+    \exists i.\ c\!=\!c_i \land j_i\!=\!n
+    \quad p_{\mu} = \absu{\lambda}{v}{\mu\ u.\ v\ \{c_i\ u_{i1} ... u_{ij_i}
+      \mapsto f_i\}_{i=1..n}}
+  }
+\]
+
+$\mu$-reduction is similar to $\mu'$-reduction, but combines with it fixpoint
+reduction. Again, if the scrutinee $c\ p_1 ... p_n$ matches one of the branch
+patterns $c_i\ u_{i1} ... u_{ij_i}$ (for some $i$, where $j_i = n$), then we
+replace the original $\mu$ expression with the matched branch, replacing each of
+the pattern variables $u_1 ... u_n$ with the scrutinee's arguments $p_1 ...
+p_n$, but \textit{in addition} we also replace the $\mu$-bound variable $u$
+(which represents the entire $\mu$ expression itself) with a function $p_\mu$
+that takes its argument $v$ and re-creates the original $\mu$ expression by
+scrutinizing $v$.
 
 \section{Type System (sans Inductive Datatypes)}
 \label{sec:type-system}
