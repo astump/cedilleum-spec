@@ -17,11 +17,10 @@
 
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
 \DeclareUnicodeCharacter{0393}{\ensuremath{\Gamma}}
-\DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
+\DeclareUnicodeCharacter{21A6}{\ensuremath{\to}}
 \DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
 \DeclareUnicodeCharacter{1D48C}{\ensuremath{\kappa}}
 \DeclareUnicodeCharacter{1D62}{\ensuremath{_{\texttt{D}}}} % maps _i to _d
-
 
 % useful macros
 \newcommand{\ann}[2]{#1\! : \! #2}
@@ -228,7 +227,7 @@ that \verb;m'; is bound \textit{irrelevantly}, then we make a local biding
 \textit{irrelevant} argument to \texttt{vappend-rec}) before producing a result whose type is
 convertible with the expected \verb;Vec ·A (add (suc m') n);.
 
-\subsection{Histomorphic Recursion}
+\subsection{Course-of-Value Recursion}
 \label{sec:hist-rec}
 \begin{figure}[h]
 \begin{verbatim}
@@ -267,11 +266,11 @@ divide : Nat ➔ Nat ➔ Nat
 We study more closely the strange types \verb;Nat/add-rec; and
 \verb;Vec/append-rec;. The reader may well ask whether they serve any purpose
 other than marking what recursive calls are legal in a function -- and the
-answer is yes! Cedilleum uses types like these to support \textit{histomorphic}
-or \textit{course-of-values} recursion, which is to say recursion schemes that
-can dig arbitrarily deeply into the recursive occurences of data to compute
-results. As a motivating example, we now show how we can define division on
-natural numbers in Cedilleum using histomorphic recursion.
+answer is yes! Cedilleum uses types like these to support
+\textit{course-of-value} recursion, which is to say recursion schemes that can
+dig arbitrarily deeply into the recursive occurences of data to compute results.
+As a motivating example, we now show how we can define division on natural
+numbers in Cedilleum using course-of-value recursion.
 
 Languages with inductive datatypes and recursive function definitions that also
 wish to have their type systems interpreted as sound logics must address the
@@ -296,7 +295,7 @@ less than its second. In \texttt{divide} we kick off recursion on the numerator
 \texttt{zero}. When it is non-zero, we locally define \texttt{m'} by using
 \texttt{fromNat/divide-rec} to cast the sub-data \texttt{r} of type
 \texttt{Nat/divide-rec} back to \texttt{Nat}, where \texttt{fromNat/divide-rec}
-is another automatically-generated in-scope of the body of the \texttt{μ}
+is another automatically-generated name in-scope of the body of the \texttt{μ}
 definition. We then use \texttt{ite} (mnemonic for ``if-then-else'') to see
 whether our current numerator \texttt{m'} is less than the denominator, and if
 so return \texttt{zero}.
@@ -1540,10 +1539,13 @@ At a high level, inductive data-types in Cedilleum are first translated to
 \textit{identity mappings}, which are (in the non-indexed case) a class of type
 schemes \verb;F: ★ ➔ ★; that are more general than functors. The parameter of
 the identity scheme replaces all recursive occurrences of the data-type in the
-signatures of the constructor. For the rest of this section we assume the reader
-has at least a basic understanding of impredicative encodings of datatypes (see
-\cite{PP89_Inductive-Types-CC} and \cite{Wa90_Rec-Types-For-Free}) and taking
-the least fix-point of functors (see
+signatures of the constructor and a quantified type variable replaces all
+``return type'' occurrences. For example, the type scheme for data-type
+\verb;Nat; is \verb;λ R: ★. ∀ X: ★. X ➔ (R ➔ X) ➔ X;, with \verb;R; the
+parameter and \verb;X; the quantified variable. For the rest of this
+section we assume the reader has at least a basic understanding of impredicative
+encodings of datatypes (see \cite{PP89_Inductive-Types-CC} and
+\cite{Wa90_Rec-Types-For-Free}) and taking the least fix-point of functors (see
 \cite{MFP91_Bananas-Lenses-Envelopes-Barbed-Wire}).
 
 The following developments are parameterized by an indexed type scheme $F$ whose
@@ -1562,13 +1564,13 @@ identity function. We define the type \verb;Id; of such functions and declare
 
 \begin{verbatim}
 Idᵢ : Π A B: (Π Γᵢ. ★). ι id: ∀ Γᵢ. A Γᵢ ➔ B Γᵢ. {id ≃ λ x. x}.
-elimIdᵢ : Π A B: (Γᵢ. ★). Idᵢ ·A ·B ➾ A ➔ B = <..>
+elimIdᵢ : ∀ A B: (Γᵢ. ★). Idᵢ ·A ·B ➾ A ➔ B = <..>
 \end{verbatim}
 
 Recall that since Cedilleum has a Curry-style type system and implicit
 products there are many non-trivial functions that erase to identity.
 While the definition of \verb;elimIdᵢ; is omitted, it is important to note that
-it enjoys the following reduction behavior:
+it enjoys the property of erasing to the identity function:
 \begin{verbatim}
 elimIdᵢ-prop : {elimIdᵢ ≃ λ x. x} = β.
 \end{verbatim}
@@ -1590,6 +1592,7 @@ fimapᵢ : ∀ F: (Π Γᵢ. ★) ➔ (Π Γᵢ. ★). ∀ im: IdMappingᵢ ·F.
 From \verb;elimIdᵢ-prop; it should be clear that \verb;fimapᵢ; also erases to
 \verb;λ x. x;.
 
+% TODO Re-do View with indexes, too!
 \subsection{Type-views of Terms}
 A crucial component of course-of-value is the ability to view some term as having
 two different types. The idea behind a \verb;View; is similar to that behind the
@@ -1599,8 +1602,87 @@ doubly-typed term:
 View : Π A: ★. A ➔ ★ ➔ ★ = λ A a B. ι b: B. {a ≃ b}
 elimView : ∀ A B: ★. Π a: A. View ·A a ·B ➾ B = <..>
 elimView-prop : {elimView ≃ λ x. x} = β.
-
 \end{verbatim}
+
+\subsection{λ-encoding Interface}
+This subsection describes the interface to which data-type declarations are
+elaborated; it is parameterized by an identity mapping.
+
+% TODO module parameters!
+\begin{verbatim}
+module (Fᵢ: (Π Γᵢ. ★) → (Π Γᵢ. ★)){im: IdMapping ·Fᵢ}.
+\end{verbatim}
+
+% TODO explain derivation?
+\noindent where parameters \verb;Fᵢ; and \verb;im; are automatically derived from the
+declaration of a positive data-type.
+
+With these two parameters alone, the generic developments of [TODO] provide the
+following interface for inductive λ-encodings of data-types:
+
+\begin{verbatim}
+Fixᵢ : Π Γᵢ. ★ = <..>
+inᵢ  : ∀ Γᵢ. Fᵢ ·Fixᵢ Γᵢ ➔ Fixᵢ Γᵢ = <..>
+outᵢ : ∀ Γᵢ. Fixᵢ Γᵢ ➔ Fᵢ ·Fixᵢ Γᵢ = <..>
+
+PrfAlgᵢ : Π P: (Π Γᵢ. Π d: Fixᵢ Γᵢ. ★). ★
+  = λ P. ∀ R: (Π Γᵢ. ★).
+      ∀ c: Idᵢ ·R ·Fixᵢ.
+      Π v: View ·(∀ Γᵢ. Fixᵢ Γᵢ ➔ Fᵢ ·Fixᵢ Γᵢ) out ·(∀ Γᵢ. R Γᵢ ➔ Fᵢ ·R Γᵢ).
+      Π ih: (∀ Γᵢ. Π r: R Γᵢ. P Γᵢ (elimIdᵢ -c -Γᵢ r)).
+      Π Γᵢ. Π fr. F ·R Γᵢ.
+      P Γᵢ (inᵢ -Γᵢ (fimapᵢ -im -c fr)).
+inductionᵢ : ∀ P: (Π Γᵢ. Π d: Fixᵢ Γᵢ. ★). PrfAlgᵢ ·P ➔ ∀ Γᵢ. Π d: Fixᵢ Γᵢ. P Γᵢ d
+  = <..>
+\end{verbatim}
+
+The first three definitions give \verb;Fixᵢ; as the (least) fixed-point of
+\verb;Fᵢ;, with \verb;inᵢ; and \verb;outᵢ; representing resp. a generic set of
+constructors and destructors. \verb;inductionᵢ; of course is the proof-principle
+stating that if one can provide a \verb;PrfAlg; for property \verb;P; (that is,
+\verb;P; holds for all \verb;Fixᵢ; generated by (generic) constructor
+\verb;inᵢ;) then this suffices to show that \verb;P; holds for \textit{all}
+\verb;Fixᵢ;.
+
+We now explain the definition of \verb;PrfAlgᵢ; in more detail:
+\begin{itemize}
+  \item \verb;R; is the type of recursive occurrences of the data-type
+    \verb;Fixᵢ;.
+
+    It corresponds directly to types like \verb;rec/Nat; when using
+    \verb;μ; in Cedilleum
+  \item \verb;c; is a ``revealer'', that is to say a proof that \verb;R; really
+    \textit{is} \verb;Fixᵢ; witnessed by an identity function.
+
+    It corresponds directly to functions like \verb;rec/cast; when using \verb;μ;
+  \item \verb;v; is evidence that the (generic) destructor \verb;outᵢ; can be
+    used on the recursive occurrence type \verb;R; for further pattern-matching.
+
+    It corresponds directly to \verb;μ'; (when used outside of \verb;μ; it
+    corresponds to the ``trivial'' view that \verb;outᵢ; has the type it is
+    already declared to have).
+
+  \item \verb;ih; is the inductive hypothesis, stating that property \verb;P;
+    holds for all recursive occurrences \verb;R; of an inductive case
+
+    It corresponds directly to the \verb;μ;-bound variable for fix-point recursion.
+  \item \verb;fr; represents the collection of constructors that each \verb;μ;
+    branch must account for.
+
+    For example, for the data-type \verb;Nat; we have identity mapping
+    \verb;fr: ∀ X: ★. X ➔ (R ➔ X) ➔ X; and Cedilleum cases branches
+    \verb;{| zero ➔ zcase | succ r ➔ scase r }; translate to
+    \verb;fr zcase (λ r. scase r);
+
+  \item Finally, result type \verb;P Γᵢ (inᵢ -Γᵢ (fimapᵢ -im -c fr)); accounts
+    for the return type of each case branch.
+
+    Since \verb;P; is phrased over \verb;Fixᵢ;, and we have by assumption
+    \verb;fr: Fᵢ ·R Γᵢ;, we must first use our identity mapping \verb;im; to
+    traverse \verb;fr; and cast each recursive occurrence \verb;R Γᵢ; to
+    \verb;Fixᵢ Γᵢ;, producing an expression of type \verb;F ·Fixᵢ Γᵢ; which we are
+    then able to transform into \verb;Fixᵢ Γᵢ; using (generic) constructor \verb;inᵢ;.
+\end{itemize}
 
 \bibliographystyle{alpha}
 \bibliography{spec}
