@@ -16,9 +16,12 @@
 % \usepackage{unicode-math}
 
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
+\DeclareUnicodeCharacter{0393}{\ensuremath{\Gamma}}
 \DeclareUnicodeCharacter{21A6}{\ensuremath{\mapsto}}
 \DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
 \DeclareUnicodeCharacter{1D48C}{\ensuremath{\kappa}}
+\DeclareUnicodeCharacter{1D62}{\ensuremath{_{\texttt{D}}}} % maps _i to _d
+
 
 % useful macros
 \newcommand{\ann}[2]{#1\! : \! #2}
@@ -42,6 +45,9 @@
 \newcommand{\llbrace}{\{\!\{}
 \newcommand{\rrbrace}{\}\!\}}
 \newcommand{\piforall}{^{\Pi}_{\forall}}
+\newcommand{\lamLam}{^{\lambda}_{\Lambda}}
+\DeclareUnicodeCharacter{03A8}{\ensuremath{\piforall}} % maps Ψ to \piforall
+\DeclareUnicodeCharacter{03C8}{\ensuremath{\lamLam}}   % maps ψ to \lamLam
 \newcommand{\reduce}{\ensuremath{\rightsquigarrow}}
 
 \begin{document}
@@ -54,6 +60,7 @@
 \maketitle
 
 \section{Introduction}
+\label{sec:intro}
 The document describes \textit{Cedilleum}, a general-purpose dependently typed
 programming language with inductive datatypes. Unlike most languages of this
 description, the underlying theory of Cedilleum is \textit{not} the Calculus of
@@ -1060,6 +1067,7 @@ inhabited. The remaining primitive χ allows the user to provide an
 explicit top-level annotation for a term.
 
 \section{Inductive Datatypes}
+\label{sec:ind-data}
 
 Before we can provide the typing rules for introduction and usage of inductive
 datatypes, some auxiliary definitions must be given. The syntax for these, and
@@ -1514,6 +1522,85 @@ $x_{\text{rec}}$.
 \noindent With these definitions, we finish the rule by checking that the
 pattern is well-formed using the augmented local context $\Gamma'$ and context
 of inductive data-type definitions $\Delta'$.
+
+\section{Elaboration of Inductive Datatypes}
+As mentioned in Section \ref{sec:intro}, Cedilleum is not based on CIC. Rather,
+its core theory is the \textit{Calculus of Dependent Lambda Eliminations}
+(CDLE), whose complete typing rules can are those of Section
+\ref{sec:type-system} plus rules for dependent intersections (see
+\cite{St18_Cedille-Syntax-Semantics}). That is to say, the preceding treatment
+for inductive datatypes (Section \ref{sec:ind-data}) is a high-level and
+convenient interface for \textit{derivable} inductive λ-encodings. This section
+explains the elaboration process. Since the generic derivation of inductive
+data-types with course-of-value induction has been covered in-depth in [TODO],
+we omit these details and instead describe the \textit{interface} such
+developments provide that data-type elaboration targets.
+
+At a high level, inductive data-types in Cedilleum are first translated to
+\textit{identity mappings}, which are (in the non-indexed case) a class of type
+schemes \verb;F: ★ ➔ ★; that are more general than functors. The parameter of
+the identity scheme replaces all recursive occurrences of the data-type in the
+signatures of the constructor. For the rest of this section we assume the reader
+has at least a basic understanding of impredicative encodings of datatypes (see
+\cite{PP89_Inductive-Types-CC} and \cite{Wa90_Rec-Types-For-Free}) and taking
+the least fix-point of functors (see
+\cite{MFP91_Bananas-Lenses-Envelopes-Barbed-Wire}).
+
+The following developments are parameterized by an indexed type scheme $F$ whose
+kind is the index-sort of some data-type declaration
+$\indast{I}{p}{\Gamma_I}{\Sigma}$ -- that is to say if $I$ has kind $Π\ \Gamma_P.
+Π\ \Gamma_D.\ ★$ (where $\lenc{\Gamma_p} = p$) then $F$ has kind $Π\ \Gamma_D.\ ★$.
+
+\subsection{Identity Mappings}
+Our first task is to describe identity mappings, the class of type schemes
+\verb;F: (Π Γᵢ. ★) ➔ Π Γᵢ. ★; we concerned with. Identity mappings are similar to functors
+in that they come equipped with a function that resembles
+\verb;fmap: ∀ Γᵢ. ∀ A B: Π Γᵢ. ★. Π f: (A ·Γᵢ ➔ B ·Γᵢ). F ·(A ·Γᵢ) ➔ F ·(B ·Γᵢ);
+except that it need only be defined for an argument \verb;f; that is equal to the
+identity function. We define the type \verb;Id; of such functions and declare
+(indicated by \verb;<..>;) its elimination principle \verb;elimIdᵢ;:
+
+\begin{verbatim}
+Idᵢ : Π A B: (Π Γᵢ. ★). ι id: ∀ Γᵢ. A Γᵢ ➔ B Γᵢ. {id ≃ λ x. x}.
+elimIdᵢ : Π A B: (Γᵢ. ★). Idᵢ ·A ·B ➾ A ➔ B = <..>
+\end{verbatim}
+
+Recall that since Cedilleum has a Curry-style type system and implicit
+products there are many non-trivial functions that erase to identity.
+While the definition of \verb;elimIdᵢ; is omitted, it is important to note that
+it enjoys the following reduction behavior:
+\begin{verbatim}
+elimIdᵢ-prop : {elimIdᵢ ≃ λ x. x} = β.
+\end{verbatim}
+
+We may now define \verb;IdMapping; as a scheme \verb;F; that comes with a way to
+lift identity functions:
+\begin{verbatim}
+IdMappingᵢ : Π F: (Γᵢ ➔ ★) ➔ (Γᵢ ➔ ★). ★
+  = λ F. ∀ A B: (Γᵢ ➔ ★). Ψ Γᵢ. Idᵢ ·A ·B ➔ Idᵢ ·(F ·A) ·(F ·B).
+\end{verbatim}
+
+Finally, it is convenient to define \verb;fimap; which given an
+\verb;IdMapping; and an \verb;Id; function performs the lifting:
+\begin{verbatim}
+fimapᵢ : ∀ F: (Π Γᵢ. ★) ➔ (Π Γᵢ. ★). ∀ im: IdMappingᵢ ·F. Castᵢ ·A ·B ➾ F ·A ➔ F ·B
+  = Λ F im c. λ f. elimIdᵢ -(im c) f.
+\end{verbatim}
+
+From \verb;elimIdᵢ-prop; it should be clear that \verb;fimapᵢ; also erases to
+\verb;λ x. x;.
+
+\subsection{Type-views of Terms}
+A crucial component of course-of-value is the ability to view some term as having
+two different types. The idea behind a \verb;View; is similar to that behind the
+type \verb;Id; from the previous section, except now we explicitly name the
+doubly-typed term:
+\begin{verbatim}
+View : Π A: ★. A ➔ ★ ➔ ★ = λ A a B. ι b: B. {a ≃ b}
+elimView : ∀ A B: ★. Π a: A. View ·A a ·B ➾ B = <..>
+elimView-prop : {elimView ≃ λ x. x} = β.
+
+\end{verbatim}
 
 \bibliographystyle{alpha}
 \bibliography{spec}
