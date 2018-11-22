@@ -21,7 +21,13 @@
 \DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
 \DeclareUnicodeCharacter{1D48C}{\ensuremath{\kappa}}
 \DeclareUnicodeCharacter{1D62}{\ensuremath{_{\texttt{D}}}} % maps _i to _d
-
+\DeclareUnicodeCharacter{209A}{\ensuremath{_{\texttt{p}}}}
+\DeclareUnicodeCharacter{2C7C}{\ensuremath{_{\texttt{j}}}} % maps _J to _j
+\DeclareUnicodeCharacter{1D3F}{\ensuremath{^{\texttt{R}}}}
+\DeclareUnicodeCharacter{208B}{\ensuremath{_{-}}}
+\DeclareUnicodeCharacter{208C}{\ensuremath{_{=}}}
+\DeclareUnicodeCharacter{2099}{\ensuremath{_{n}}}
+\DeclareUnicodeCharacter{22EF}{\ensuremath{_{..}}}
 % useful macros
 \newcommand{\ann}[2]{#1\! : \! #2}
 \newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
@@ -1683,6 +1689,61 @@ We now explain the definition of \verb;PrfAlgᵢ; in more detail:
     \verb;Fixᵢ Γᵢ;, producing an expression of type \verb;F ·Fixᵢ Γᵢ; which we are
     then able to transform into \verb;Fixᵢ Γᵢ; using (generic) constructor \verb;inᵢ;.
 \end{itemize}
+
+While the definitions of \verb;inᵢ;, \verb;outᵢ;, and \verb;inductionᵢ; are
+omitted, it is important that they have the following computational behavior
+(guaranteed by [TODO]):
+\begin{verbatim}
+lambek1ᵢ : ∀ Γᵢ. Π gr: Fᵢ Fixᵢ Γᵢ. {outᵢ (inᵢ gr) ≃ gr} = β.
+lambek2ᵢ : ∀ Γᵢ. Π d: Fixᵢ Γᵢ. {in (out d) ≃ d}
+  = inductionᵢ ·(λ Γᵢ. λ x: Fixᵢ Γᵢ. {in (out x) ≃ x})
+     (Λ R. Λ c. λ o. Λ eq. λ ih. λ gr. β).
+
+inductionCancelᵢ : ∀ P: (Π Γᵢ. Fixᵢ Γᵢ ➔ ★).
+    Π alg: PrfAlg ·P ➔ ∀ Γᵢ. Π fr: F ·Fixᵢ Γᵢ.
+    { inductionᵢ alg (in gr) ≃ alg outᵢ (inductionᵢ alg) fr}
+  = λ _. λ _. β.
+\end{verbatim}
+That is, \verb;inᵢ; and \verb;outᵢ; are inverses of each other and
+\verb;inductionᵢ; behaves like a fold (where the algebra takes the additional
+\verb;outᵢ; argument).
+
+\subsection{Sum-of-Products Induction}
+As stated above, every inductive data-type declaration
+$\indast{I}{p}{Γ_I}{\Sigma}$ is first translated to a type-scheme \verb;IF;
+where all recursive occurrences of type \verb;I; in the constructor signatures
+$\Sigma$ have been replaced by the scheme's argument \verb;R;. In this
+subsection describe that process more precisely and explain ``sum-of-products''
+induction for \verb;IF;
+
+First, as the kind of \verb;I; is \verb;Π Γₚ. Π Γᵢ. ★;, where \verb;Γₚ; are the
+parameters and \verb;Γᵢ; the indices, it follows that the kind of \verb;IF; is
+\verb;Π Γₚ. Π R: (Π Γᵢ. ★). (Π Γᵢ. ★);. Next, each constructor $c_j$ has type
+$\Sigma(c_j)$ which we know has the form $\piforall\ \Gamma_j.\ I\ \Gamma_p\
+\vars{t_j}$ (that is, some number of arguments $\Gamma_j$ with a return type
+constructing the inductive data-type $I$). All recursive occurrences of $I$ in
+$\Gamma_j$ are substituted away with \verb;λ Γₚ. R; to produce $Γ^R_j$. With
+that, we may defined \verb;IF; as
+
+\[ λ\ Γₚ\ \texttt{R}\ Γᵢ.\ ∀ X: Π\ Γᵢ. ★. (Π\ c_j: (\piforall Γ^R_j.\ X\
+  \vars{t_j}))_{j=1..n}.\ X\ Γᵢ\]
+
+\paragraph{Example}
+
+The data-type declaration of \verb;Vec; translates to:
+\begin{verbatim}
+VecF : Π A: ★. (Nat ➔ ★) ➔ Nat ➔ ★
+  = λ A R n. ∀ X: Nat ➔ ★. X zero ➔ (∀ n: Nat. A ➔ R n ➔ X (succ n)) ➔ X n.
+\end{verbatim}
+
+An induction principle for each of these non-recursive sum-of-products types
+\verb;IF; can be defined in an automated way following the recipe given by
+[TODO]; in general these have the following shape:
+
+\begin{verbatim}
+indIF : ∀ Γₚ. ∀ R: (Π Γᵢ. ★). ∀ Γᵢ. Π fr: IF Γₚ ·R Γᵢ. ∀ P: (Π Γᵢ. IF Γₚ ·R Γᵢ ➔ ★)
+    (Π pⱼ: Ψ Γᴿⱼ. P (cⱼ Γᴿⱼ))ⱼ₌₁⋯ₙ. P Γᵢ fr = <..>
+\end{verbatim}
 
 \bibliographystyle{alpha}
 \bibliography{spec}
