@@ -23,11 +23,22 @@
 \DeclareUnicodeCharacter{1D62}{\ensuremath{_{\texttt{D}}}} % maps _i to _d
 \DeclareUnicodeCharacter{209A}{\ensuremath{_{\texttt{p}}}}
 \DeclareUnicodeCharacter{2C7C}{\ensuremath{_{\texttt{j}}}} % maps _J to _j
+\DeclareUnicodeCharacter{2096}{\ensuremath{_{\texttt{k}}}} % maps _J to _j
 \DeclareUnicodeCharacter{1D3F}{\ensuremath{^{\texttt{R}}}}
 \DeclareUnicodeCharacter{208B}{\ensuremath{_{-}}}
 \DeclareUnicodeCharacter{208C}{\ensuremath{_{=}}}
+\DeclareUnicodeCharacter{2098}{\ensuremath{_{m}}}
 \DeclareUnicodeCharacter{2099}{\ensuremath{_{n}}}
+\DeclareUnicodeCharacter{1D64}{\ensuremath{_{\texttt{y}}}}
+\DeclareUnicodeCharacter{2093}{\ensuremath{_{x}}}
 \DeclareUnicodeCharacter{22EF}{\ensuremath{_{..}}}
+\DeclareUnicodeCharacter{2080}{\ensuremath{_0}}
+\DeclareUnicodeCharacter{2083}{\ensuremath{_3}}
+\DeclareUnicodeCharacter{00B9}{\ensuremath{^1}}
+\DeclareUnicodeCharacter{00B2}{\ensuremath{^2}}
+\DeclareUnicodeCharacter{20B8}{\ensuremath{\vars{\texttt{t}}}}
+\DeclareUnicodeCharacter{015F}{\ensuremath{\vars{\texttt{c}}}}
+
 % useful macros
 \newcommand{\ann}[2]{#1\! : \! #2}
 \newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
@@ -1539,7 +1550,7 @@ convenient interface for \textit{derivable} inductive λ-encodings. This section
 explains the elaboration process. Since the generic derivation of inductive
 data-types with course-of-value induction has been covered in-depth in [TODO],
 we omit these details and instead describe the \textit{interface} such
-developments provide that data-type elaboration targets.
+developments provide which data-type elaboration targets.
 
 At a high level, inductive data-types in Cedilleum are first translated to
 \textit{identity mappings}, which are (in the non-indexed case) a class of type
@@ -1554,10 +1565,10 @@ encodings of datatypes (see \cite{PP89_Inductive-Types-CC} and
 \cite{Wa90_Rec-Types-For-Free}) and taking the least fix-point of functors (see
 \cite{MFP91_Bananas-Lenses-Envelopes-Barbed-Wire}).
 
-The following developments are parameterized by an indexed type scheme $F$ whose
-kind is the index-sort of some data-type declaration
-$\indast{I}{p}{\Gamma_I}{\Sigma}$ -- that is to say if $I$ has kind $Π\ \Gamma_P.
-Π\ \Gamma_D.\ ★$ (where $\lenc{\Gamma_p} = p$) then $F$ has kind $Π\ \Gamma_D.\ ★$.
+% TODO parameters
+The following developments are parameterized by an indexed type scheme $F$ of
+kind \verb;(Π Γᵢ. ★) → (Π Γᵢ. ★); corresponding to the kind
+\verb;Π Γᵢ. ★; of inductive data-type $I$ declared as $\indast{I}{p}{\Gamma_I}{\Sigma}$
 
 \subsection{Identity Mappings}
 Our first task is to describe identity mappings, the class of type schemes
@@ -1744,6 +1755,131 @@ An induction principle for each of these non-recursive sum-of-products types
 indIF : ∀ Γₚ. ∀ R: (Π Γᵢ. ★). ∀ Γᵢ. Π fr: IF Γₚ ·R Γᵢ. ∀ P: (Π Γᵢ. IF Γₚ ·R Γᵢ ➔ ★)
     (Π pⱼ: Ψ Γᴿⱼ. P (cⱼ Γᴿⱼ))ⱼ₌₁⋯ₙ. P Γᵢ fr = <..>
 \end{verbatim}
+
+\appendix
+\section{Deriving \texttt{IdMappingᵢ} for a Data-type Type Scheme}
+A type scheme \verb;F; derived from a data-type declaration has by assumption a
+definition following the pattern:
+
+\begin{verbatim}
+F : Π Γₚ. (Π Γᵢ. ★) → Π Γᵢ. ★
+  = λ Γₚ R Γᵢ. ∀ X: (Π Γᵢ. ★). (Π cⱼ: (Ψ Γᴿⱼ. X ₸ⱼ))ⱼ₌₁₋ₙ. X Γᵢ
+\end{verbatim}
+
+\noindent where \verb;R; occurs only positively. From this we must give a
+witness that \verb;F; is an identity mapping over \verb;R;
+
+\begin{verbatim}
+idmap : ∀ Γₚ. IdMappingᵢ ·F
+  = Λ Γₚ. Λ R1. Λ R2. Λ id. ●
+\end{verbatim}
+
+\noindent where the expected type of \verb;●; is \verb;Idᵢ ·(F ·Γₚ R1) ·(F ·Γ R2);
+
+We refine \verb;●; by the introduction rule for intersections (which \verb;Idᵢ; is) and
+introduce the assumption \verb;fr1: F ·Γₚ R1 ·Γᵢ;
+
+\begin{verbatim}
+[ Λ Γᵢ. λ fr1. ●₁ , ●₂]
+\end{verbatim}
+
+\noindent where \verb;●₁: F ·Γₚ R2 ·Γᵢ; and \verb;●₂: {λ fr1. ●₁ ≃ λ x. x};. As
+the only (non-hole) refinements we will make to \verb;●₁; are converting terms to $\eta$-long
+form and applying \verb;elimIdᵢ -id; to subterms (which reduces to the identity
+function), we are justified in replacing \verb;●₂; with \verb;β;. We now refine
+the remaining \verb;●₁; to
+
+\begin{verbatim}
+Λ X. λ ş. ● fr1 ş
+\end{verbatim}
+
+\noindent where each abstract constructor \texttt{cⱼ} in ş has type
+\verb;Ψ Γᴿ²ⱼ. X ₸ⱼ;. Note again the superscript \verb;R2; -- we are now trying
+to construct a term of type \verb;F ·Γₚ R2 ·Γᵢ; so we assume the ``abstract''
+constructors whose recursive occurence types are \verb;R2;. Correspondingly,
+this means that \verb;●: F ·Γₚ R1 ·Γᵢ → (Π cⱼ: (Ψ Γᴿ²ⱼ. X ₸ⱼ))ⱼ₌₁₋ₙ → X Γᵢ;.
+
+Since \verb;fr1; produces a value of type \verb;X Γᵢ; when fed appropriate
+arguments, we refine \verb;●; by $n$ holes \verb;●ⱼ; applied to constructor
+\verb;cⱼ;. The expression \verb;● fr1 ş; becomes
+
+\begin{verbatim}
+fr1 (●ⱼ cⱼ)ⱼ₌₁₋ₙ
+\end{verbatim}
+
+\noindent where now \verb;●ⱼ: (Ψ Γᴿ²ⱼ. X ₸ⱼ) → Ψ Γᴿ¹ⱼ. X ₸ⱼ;. We henceforth
+dispense with the subscript $j$ numbering the constructor and treat each
+abstract constructor uniformly.
+
+\subsection{Conversion of the Abstract constructors}
+We first make the expression \verb;● c; $\eta$-long, as in \verb;ψ Γᴿ¹. ● c Γᴿ¹;,
+then refine \verb;● c Γᴿ¹; to an expression with $m$ holes \verb;●ₖ; for each $\texttt{y}_k \in
+Γ^{\texttt{R1}}$ (where $m\ =\ \lenc{Γ^{\texttt{R1}}}$), yielding
+
+\begin{verbatim}
+c (●ₖ yₖ)ₖ₌₁₋ₘ
+\end{verbatim}
+
+\noindent where \verb;●ₖ: Γᴿ¹(yₖ) → Γᴿ²ₖ(yₖ); (and the type of \verb;yₖ;
+and \verb;●ₖ yₖ; can depend resp. on any \verb;yᴿ¹ⱼ; and \verb;●ⱼ yⱼ; where
+$j < k$). We now dispense with the subscript $k$ for arguments and handle each
+constructor sub-data uniformly.
+
+\subsection{Conversion of Constructor Sub-data With Positive Recursive Occurences}
+\label{ssec:positive}
+We now consider \verb;● y; where \verb;y: S; is some sub-data to an
+(abstract) constructor with recursive occurence type \verb;R1; passing the
+positivity checker. (The expression \verb;● y; has type \verb;[R2/R1]S;).
+There are two cases to consider:
+
+\begin{itemize}
+\item[1] \verb;R1; does not occur in the type of \verb;y;
+
+  Refine \verb;●; to \verb;unit: ∀ X: ★. X → X = Λ X. λ x. x; and finish.
+\item[2] \verb;R1; occurs positively in the type of \verb;y;
+
+  This means $S$ has the shape \verb;Ψ Γᴿ¹ₓ. T; (where \verb;T; is not formed by
+  an arrow) with \verb;R1;
+  occurring \textit{only negatively} in the type of the
+  $\texttt{xⱼ} \in Γ^{R1}_x$ (where $j=1..\lenc{Γ^{R1}ₓ}$). Make \verb;● y;
+  $\eta$-long and refine the expression to $\lenc{Γ^{R1}ₓ}$ holes \verb;●ⱼ; such
+  that the expression is now
+  
+\begin{verbatim}
+ψ Γᴿ²ₓ. ● y (●ⱼ xⱼ)ⱼ₌₁₋ₙ
+\end{verbatim}
+
+  \noindent Where here \verb;xⱼ; is bound by \verb;Γᴿ²; and thus has negative occurences
+  of \verb;R2;. Note that we still require \verb;●; since it might be the case that
+  \verb;T = R1 Γᵢ; (handled below); it has type \verb;S → Ψ Γᴿ¹ₓ. [R1/R2]T;.
+  Each \verb;●ⱼ; has type \verb;Γᴿ²ₓ(xⱼ) → Γᴿ¹ₓ(xⱼ);.
+
+  Perform the steps outlined in Section \ref{ssec:negative} to fill in each
+  \verb;●ⱼ; producing from \verb;●ⱼ xⱼ; the sequence of arguments \verb;₸ⱼ; of
+  type \verb;Γᴿ¹ₓ; that erase to \verb;xⱼ₌₁₋ₙ; Finally, refine \verb;●; to either \verb;unit; or
+  \verb;λ y. λ xⱼ. elimId -c (y xⱼ); depending on whether \verb;T = R1 Γᵢ;
+
+\end{itemize}
+
+\subsection{Conversion of Constructor Sub-data With Negative Recursive
+  Occurences}
+\label{ssec:negative}
+We consider \verb;● x; where \verb;x: Ψ Γᴿ²ᵤ. S;, \verb;S; is not an arrow
+and does not contain \verb;R2;, and \verb;R2; occurs positively in the types of
+the variables bound by \verb;Γᴿ²ᵤ;. The expression \verb;● x; has type
+\verb;Ψ Γᴿ¹ᵤ. S;.
+
+Make \verb;● x; $\eta$-long and introduce holes \verb;●ⱼ; to apply to the
+sub-data as in
+
+\begin{verbatim}
+ψ Γᴿ¹ᵤ. x (●ⱼ yⱼ)ⱼ₌₁₋ₙ
+\end{verbatim}
+
+\noindent where \verb;●ⱼ: Γᴿ¹ᵤ(yⱼ) → Γᴿ²ᵤ(yⱼ);. Perform the steps outlined by
+Section \ref{ssec:positive} to fill in each \verb;●ⱼ; producing from
+\verb;●ⱼ yⱼ; the sequence of arguments \verb;₸; that erase to \verb;yⱼ₌₁₋ₙ;.
+
 
 \bibliographystyle{alpha}
 \bibliography{spec}
