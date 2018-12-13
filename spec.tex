@@ -115,8 +115,8 @@ data Vec (A: ★): Nat ➔ ★ =
   \label{fig:ex-data-decl}
 \end{figure}
 Figure \ref{fig:ex-data-decl} shows some definitions of inductive datatypes, and
-modulo differences in syntax should seem straightforward to programmers that
-have used languages like Agda, Idris, or Coq. The key things to note are:
+modulo differences in syntax should seem straightforward to programmers used
+tilanguages like Agda, Idris, or Coq. Some key differences to note are:
 
 \begin{itemize}
 \item In constructor type signatures, recursive occurrences of the inductive
@@ -134,8 +134,9 @@ have used languages like Agda, Idris, or Coq. The key things to note are:
   (also called \textit{erased}). This is because it is introduced by the
   irrelevant dependent function former \texttt{∀}, as opposed to the relevant
   function former \texttt{Π}. More will be said of this when we discuss the type
-  system of Cedilleum, but for now it suffices to say that this idea comes from
-  the \textit{Implicit Calculus of Constructions}\cite{Mi01_ICC}
+  system of Cedilleum, but for now it suffices to say that implicit
+  quantification comes from the \textit{Implicit Calculus of
+    Constructions}\cite{Mi01_ICC}.
 \end{itemize}
 
 \subsection{Function Definitions}
@@ -144,20 +145,15 @@ have used languages like Agda, Idris, or Coq. The key things to note are:
 -- Non-recursive
 ite : ∀ X: ★. Bool ➔ X ➔ X ➔ X
   = Λ X. λ b. λ then. λ else. μ' b {
-      | tt ↦ then
-      | ff ↦ else
+      | tt ➔ then
+      | ff ➔ else
       }.
-pred : Nat ➔ Nat
-  = λ n. μ' n {
-      | zero    ↦ n
-      | succ n' ↦ n'
-      }
 -- Recursive
 add : Nat ➔ Nat ➔ Nat
   = λ n. λ m.
-      μ add-rec. n @(λ x: Nat. Nat) {
-      | zero   ↦ m
-      | succ p ↦ succ (add-rec p)
+      μ rec. n @(λ x: Nat. Nat) {
+      | zero   ➔ m
+      | succ p ➔ succ (rec p)
       }.
 \end{verbatim}
   \caption{Functions over inductive datatypes}
@@ -169,33 +165,29 @@ using pattern matching and recursion. The first difference to note between the
 definitions is that functions \texttt{ite} and \texttt{pred} perform ``mere''
 pattern matching on their arguments by using \texttt{μ'}, whereas \texttt{add}
 uses \texttt{μ} which provides combined pattern-matching and fix-point
-recursion. In \texttt{add}, \texttt{μ} binds \texttt{add-rec} as the name of the
+recursion. In \texttt{add}, \texttt{μ} binds \texttt{rec} as the name of the
 fixpoint function for recursion on \texttt{n}. From this alone the reader might
 expect that \texttt{μ'} is merely syntactic sugar for the more verbose
-\texttt{μ}, just without recursion. Actually the difference is a bit more subtle
-that this, as we will see shortly.
+\texttt{μ} but without recursion. Actually the difference is a bit more subtle
+that this, as we will see below in Section \ref{sec:hist-rec}
 
 The first major departure of Cedilleum from other languages with inductive
-datatypes can be seen in the type of \texttt{add-rec}. Ordinarily, its type
-would be \verb;Π x: Nat. Nat; (corresponding to the motive
-\verb;(λ x: Nat.Nat);) -- but in Cedilleum, its type is \verb;Nat/add-rec ➔ Nat;
- (where we read \texttt{Nat/add-rec} as a single identifier) and by extension
-for the expression \texttt{add-rec p} to be well-typed, the \texttt{p} bound in
-the pattern \texttt{succ p} must have type \texttt{Nat/add-rec} and not the more
-usual \texttt{Nat}. The type \texttt{Nat/add-rec} is \textit{automatically
-generated} by Cedilleum by combining the name of the inductive datatype
-\texttt{Nat} with the of the function \texttt{add-rec} bound by \texttt{μ}. Why?
-For recursive functions in Cedilleum, \textit{termination is guaranteed by the
-type system} and not by a separate syntactic check for structurally-decreasing
-arguments. The type \texttt{Nat/add-rec} indicates the types of those terms
-which the function \texttt{add-rec} may legally take as arguments without
-risking non-termination, and within a case branch variables of this type are
-introduced in the place of recursive arguments to constructors -- that is,
-\texttt{p} in the pattern \texttt{succ p}. In Section \ref{sec:hist-rec}, we
-will see more of how to use ``recursive occurence'' types like
-\texttt{Nat/add-rec}, including how to do further pattern matching on them and
-perform conversion back to the original type. For now it suffices to consider
-them an artifice for type-guided termination.
+datatypes can be seen in the type of \texttt{rec}. The type that the reader
+might expect it to have is \verb;Π x: Nat. Nat; (corresponding to the motive
+\verb;(λ x: Nat.Nat);), but in Cedilleum, its type is \verb;rec/type ➔ Nat;
+(where we read \texttt{rec/type} as a single identifier) and by extension for
+the expression \texttt{rec p} to be well-typed, the variable \texttt{p} bound in
+the pattern \texttt{succ p} must have type \texttt{rec/type}. The name
+\texttt{rec/type} lexically scoped to the body of the μ-expression and is
+\textit{automatically generated} by Cedilleum by using the name of the recursive
+function \texttt{rec} (which is given by the user) bound by μ. Why introduce this new type? For recursive
+functions in Cedilleum, \textit{termination is guaranteed by the type system}
+and not by a separate syntactic check that recursive calls are made on
+structurally smaller arguments. The type \texttt{rec/type} indicates the types
+of those terms which \texttt{rec} may legally take as arguments. These
+``recursive-occurence'' types appear in the types of constructor sub-data (such
+as \texttt{p} in the example) in patterns introduced by μ, replacing all
+occurences of the inductive type itself.
 % \footnotetext{More precisely, the type of every
 % variable bound by a constructor pattern of a case branch introduced by
 % \texttt{μ} has all occurences of $\texttt{I}\ \vars{P}$ replaced by
@@ -216,9 +208,9 @@ them an artifice for type-guided termination.
 -- Recursive, parameterized, indexed
 vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
   = Λ A. Λ m. Λ n. λ xs. λ ys.
-      μ vappend-rec. xs @(λ i: Nat. λ zs: Vec ·A i. Vec ·A (add i n)) {
-      | vnil            ↦ ys
-      | vcons -m' x xs' ↦ [ zs = vappend-rec -m' xs' ] - vcons -(add m' n) x zs
+      μ rec. xs @(λ i: Nat. λ zs: Vec ·A i. Vec ·A (add i n)) {
+      | vnil            ➔ ys
+      | vcons -m' x xs' ➔ [ zs = rec -m' xs' ] - vcons -(add m' n) x zs
       }.
 \end{verbatim}
   \caption{Dependent functions over inductive datatypes}
@@ -226,111 +218,122 @@ vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·
 \end{figure}
 
 Figure \ref{fig:ex-data-dep} shows the classic dependent function
-\texttt{vappend} over length-indexed lists \texttt{Vec}. Like \texttt{add}, it is
-defined by fixpoint recursion, here over the argument \texttt{xs}, and as with
-\texttt{add-rec} the fixpoint function \texttt{vappend-rec} has type
-\verb;∀ i: Nat. Π zs: Vec/vappend-rec i. Vec ·A (add i n);, where the \texttt{∀}
-indicates that \texttt{i} is an \textit{irrelevant} argument. Note again the
-missing parameter \texttt{A} in the type \texttt{Vec/vappend-rec i} -- this is
-not a typo, but rather an indication that \texttt{A} is ``baked-in'' to the type
-\texttt{Vec/vappend-rec}. Aside from this the two cases of \texttt{vappend} are
-mostly straightforward: in the \texttt{vnil} branch the expected type is
-\verb;Vec ·A (add zero n); which converts to \verb;Vec ·A n;, so \texttt{ys}
-suffices; in the \texttt{vcons} branch we bind subdata \verb;m': Nat;,
-\verb;x: A;, and \verb;xs': Vec/vappend-rec m';, with \verb;-m'; indicating
-that \verb;m'; is bound \textit{irrelevantly}, then we make a local biding
-\texttt{zs} by invoking \verb;vappend; recursively on \texttt{m'} and
-\texttt{xs'} (where again the \texttt{-m'} indicates \texttt{m'} is an
-\textit{irrelevant} argument to \texttt{vappend-rec}) before producing a result whose type is
-convertible with the expected \verb;Vec ·A (add (suc m') n);.
+\texttt{vappend} over \texttt{Vec}, the type of length-indexed lists. Like
+\texttt{add}, it is defined by fixpoint recursion, here over the argument
+\texttt{xs}. Here the fixpoint function \texttt{rec} has type
+\texttt{∀ i: Nat. Π zs: rec/type i. Vec ·A (add i n)}, where the recursive
+occurence type has kind \texttt{Nat ➔ ★}. Note again the missing parameter
+\texttt{A} in the type \texttt{rec/type i} -- this is not a typo, but rather an
+indication that \texttt{A} is ``baked-in'' to the type \texttt{rec/type}. Aside
+from this the two cases of \texttt{vappend} are mostly straightforward: in the
+\texttt{vnil} branch the expected type is \verb;Vec ·A (add zero n); which
+converts to \verb;Vec ·A n;, so \texttt{ys} suffices; in the \texttt{vcons}
+branch we bind subdata \verb;m': Nat;, \verb;x: A;, and \verb;xs': rec/type m';,
+with \verb;-m'; indicating that \verb;m'; is bound \textit{irrelevantly}, then
+we make a local biding \texttt{zs} by invoking recursive function \texttt{rec} on
+\texttt{m'} and \texttt{xs'} (where here \texttt{-m'} indicates \texttt{m'}
+is an irrelevant \textit{argument} to \texttt{rec}) before producing a result
+whose type is convertible with the expected \verb;Vec ·A (add (suc m') n);.
 
 \subsection{Course-of-Value Recursion}
+
+We now study Cedilleum's recursive-occurence types more closely. Languages
+with inductive datatypes and recursive function definitions that also wish to
+have their type systems interpreted as sound logics must address the issue of
+\textit{termination}, because the principle of general recursion \texttt{∀ A: ★.
+(A ➔ A) ➔ A} allows one to inhabit every type, the definition of unsoundness! To
+that end, most such languages perform some terminiation check separate from type
+checking that usually involves making sure that arguments to recursive calls are
+getting \textit{structurally smaller} to ensure that eventually a base case is
+reached. This check is necessarily conservative (i.e. it will not accept all
+terminating functions), and the classic example of a function that is not
+``obviously'' terminating is division on natural numbers by iterated
+subtraction. Intuitively, we understand that subtracting \texttt{n} from
+\texttt{m} never produces a number larger than \texttt{m} -- but it can be
+tricky to explain this to the termination checker! One advantage that
+Cedilleum's type-guided termination checking has is that it allows for a very
+natural definition of division as iterated subtraction that is ``obviously''
+terminating.
+
 \label{sec:hist-rec}
 \begin{figure}[h]
 \begin{verbatim}
-iterate : ∀ R: ★. Nat ➔ (R ➔ R) ➔ R ➔ R
-  = Λ R. λ n. λ f. λ x.
-      μ iterate-rec. n @(λ _: Nat. Nat) {
-      | zero    ↦ r
-      | succ r' ↦ f (iterate-rec r') 
-      }.
-minus : Nat ➔ Nat ➔ Nat
-  = λ m. λ n.
-      μ minus-rec. n @(λ _: Nat. Nat) {
-      | zero   ↦ m
-      | succ r ↦ pred (minus-rec r)
-      }.
+pred' : ∀ R: ★. Rec ·Nat ·R ➾ R ➔ R
+  = Λ R. Λ recR. λ r. μ'<recR> r {| zero ➔ r | succ r' ➔ r'}.
+
+pred : Nat ➔ Nat = pred' -Nat/mu .
+
+minus' ∀ R: ★. Rec ·Nat ·R ➾ R ➔ Nat ➔ R
+  = Λ R. Λ recR. λ m. λ n. μ rec. n @(λ _: Nat. R) {
+  | zero   ➔ m
+  | succ n' ➔ pred' -recR (rec n')
+  }.
+
+minus : Nat ➔ Nat ➔ Nat = minus' -Nat/Rec .
+
 lt : Nat ➔ Nat ➔ Bool
-  = λ m. λ n.
-      μ' (minus m n) {
-      | zero   ↦ ff
-      | succ r ↦ tt
-      }.
+  = λ m. λ n. μ' (minus m n) {
+  | zero   ➔ ff
+  | succ _ ➔ tt
+  }.
+
 divide : Nat ➔ Nat ➔ Nat
-  = λ m. λ n.
-      μ divide-rec. m @(λ _: Nat. Nat) {
-      | zero   ↦ zero
-      | succ r ↦ [ m' = succ (fromNat/divide-rec r) ]
-        - ite (lt m' n) zero
-           ([ pred' = λ x: Nat/divide-rec.
-                μ' x {| zero ↦ x | succ x' ↦ x'} ]
-            - succ (divide-rec (iterate (pred n) pred' r)))
-      }.
+  = λ n. λ d. μ rec. n @(λ _: Nat. Nat) {
+  | zero   ➔ zero
+  | succ n' ➔
+      ite (lt (succ n') d) zero
+        (succ (rec (minus' -rec/mu n' (pred d))))
+  }.
 \end{verbatim}
   \caption{Histomorphic recursion and division}
   \label{fig:ex-data-div}
 \end{figure}
-We study more closely the strange types \verb;Nat/add-rec; and
-\verb;Vec/append-rec;. The reader may well ask whether they serve any purpose
-other than marking what recursive calls are legal in a function -- and the
-answer is yes! Cedilleum uses types like these to support
-\textit{course-of-value} recursion, which is to say recursion schemes that can
-dig arbitrarily deeply into the recursive occurences of data to compute results.
-As a motivating example, we now show how we can define division on natural
-numbers in Cedilleum using course-of-value recursion.
 
-Languages with inductive datatypes and recursive function definitions that also
-wish to have their type systems interpreted as sound logics must address the
-issue of \textit{termination}, because the principle of general recursion
-\verb;∀ A: ★. (A ➔ A) ➔ A; allows one to inhabit every type -- including ones we
-want to be uninhabited! To that end, most such languages perform some
-terminiation check separate from type checking that usually involves making sure
-that arguments to recursive calls are getting \textit{structurally smaller} to
-ensure that eventually a base case is reached. This check is necessarily
-conservative (i.e. it will not accept all terminating functions), and the
-classic example of a function that is not ``obviously'' terminating is division
-on natural numbers by iterated subtraction. Intuitively, we understand that
-subtracting \texttt{n} from \texttt{m} never produces a number larger than
-\texttt{m} -- but it can be tricky to explain this to the termination checker!
+The definition of division is given in Figure \ref{fig:ex-data-div}. Our first
+definition, \texttt{pred'}, is crucial for defining \texttt{divide} further
+below. The type \texttt{Rec ·Nat ·R} in its type signature is the type of
+\textit{witnesses} that terms of type \texttt{R} can be pattern-matched upon as
+if they had type \texttt{Nat}; in the definition of \texttt{pred'}, this witness
+is given name \texttt{recR}. All such witnesses are introduced in only one of
+two ways: once \textit{globally} for each defined data-type (like \texttt{Nat}
+itself -- in the definition of \texttt{pred} term \texttt{Nat/mu} has type
+\texttt{Rec ·Nat ·Nat}; and \textit{locally} for each recursive-occurence type
+introduce by μ (in the body of \texttt{divide}, term \texttt{rec/mu} has type
+\texttt{Rec ·Nat ·rec/type}). In the definition of \texttt{pred'}, the notation
+\texttt{μ'<recR>} indicates that the witness \texttt{recR} is given explicitly
+to enable (mere) pattern-matching on argument \texttt{r}. After this, the
+definition of \texttt{pred} is easy -- it is an instance of \texttt{pred'} where
+\texttt{R} is specialized to \texttt{Nat} itself with \texttt{Nat/mu}.
 
-The definition of division is given in Figure \ref{fig:ex-data-div}. We start by
-defining some straightforward preliminaries: \texttt{iterate} for applying a
-function some number of times to a base case, \texttt{minus} for subtraction,
-and \texttt{lt} for a (boolean) predicate to test whether its first argument is
-less than its second. In \texttt{divide} we kick off recursion on the numerator
-\texttt{m}, and in the base case where it is \texttt{zero} we return
-\texttt{zero}. When it is non-zero, we locally define \texttt{m'} by using
-\texttt{fromNat/divide-rec} to cast the sub-data \texttt{r} of type
-\texttt{Nat/divide-rec} back to \texttt{Nat}, where \texttt{fromNat/divide-rec}
-is another automatically-generated name in-scope of the body of the \texttt{μ}
-definition. We then use \texttt{ite} (mnemonic for ``if-then-else'') to see
-whether our current numerator \texttt{m'} is less than the denominator, and if
-so return \texttt{zero}.
+Next we define \texttt{minus'}. One intuition for understanding the type
+signature of \texttt{minus'} (and \texttt{pred'} before it) is that it says
+``this function will never increase the size of its \texttt{R} argument''. That
+is to say, to return a term of type \texttt{R}, \texttt{minus'} can only return
+its argument or some sub-data produced by destructing it through
+pattern-matching. In \texttt{pred'} this is done only once; in \texttt{minus'}
+it is done \texttt{n} times by recursion on subtrahend \texttt{n}, invoking
+\texttt{pred'} each time.
 
-The real action happens when the current numerator is larger than our
-denominator, as we must make a recursive call to \texttt{divide-rec} after
-subtracting (via iterated predecessor) \texttt{n} from \texttt{m'}. We declare a
-version of predecessor \texttt{pred'} to operator over a term of type
-\texttt{Nat/divide-rec} and define it in terms of \texttt{μ'}. This is the key
-to enabling histomorphic recursion -- \texttt{μ'} allows for pattern matching on
-both the ``concrete'' \texttt{Nat} and ``abstracted'' \texttt{Nat/divide-rec}
-and can be iterated arbitrarily (here \texttt{pred n} times), but it 
-\textit{cannot} be used to kick off its own recursion and \textit{cannot}
-produce terms of the recursion-abstracted type \texttt{Nat/divide-rec} that are
-larger than its input. Having define \texttt{pred'} this way, the rest of the
-definition is straightforward: recursively call \texttt{divide-rec} after
-performing ``abstracted'' subtraction via iterated predecessor on our
-denominator (\texttt{iterate (pred n) pred' r}), and increment the result.
+Finally, we turn to the definition of \texttt{divide} itself. At a high level,
+we recurse on dividend \texttt{n}, and in the step case test whether \texttt{n}
+(now known to have the form \texttt{succ n'}) is less than the divisor
+\texttt{d}: if it is we return \texttt{zero}, otherwise we recurse after
+subtracting. First, consider that \texttt{succ} has type \texttt{Nat
+  ➔ Nat}, but here it is applied to argument \texttt{n'} of type
+\texttt{rec/type}. The reason that this is well-typed is that
+recursive-occurence types are always \texttt{subtypes} of the inductive
+data-type from which they came -- here, the type of \texttt{n'} is promoted to
+\texttt{Nat} in the application \texttt{succ n'}. Second, as mentioned
+before recursive function \texttt{rec} requires an argument of type
+\texttt{rec/type}, so must use \texttt{minus'} (passing the generated, locally
+bound witness \texttt{rec/mu}) so that after subtraction we have a value of the
+appropriate type. Finally, note how this definition of division is terminating
+even when divisor \texttt{d} is \texttt{zero} -- in that case the expression
+\texttt{minus' -rec/mu n' (pred d)} reduces to \texttt{n'}, which is
+\textit{still} smaller than the expression this recursive case started with,
+\texttt{succ n'}. Put another way: the ``naive'' expression \texttt{rec (minus (succ
+  n') d)} which is potentially non-terminating is not accepted by Cedilleum
+\textit{because it is ill-typed}.
 
 \subsection{Reasoning via Induction}
 \label{sec:induction}
@@ -338,79 +341,57 @@ denominator (\texttt{iterate (pred n) pred' r}), and increment the result.
 \begin{verbatim}
 add-zero-r : Π m: Nat. {add m zero ≃ m}
   = λ m. μ ih. m @(λ x: Nat. {add x zero ≃ x}) {
-         | zero   ↦ β
-         | succ r ↦ [eq = ih r]
-             - χ {succ (add (fromNat/ih r) zero) ≃ succ (fromNat/ih r)}
-             - ρ eq - β
+         | zero   ➔ β
+         | succ r ➔ χ {succ (add r zero) ≃ succ r} - ρ (ih r) - β
          } .
 \end{verbatim}
   \caption{A proof via induction}
   \label{fig:ex-data-ind}
 \end{figure}
 Figure \ref{fig:ex-data-ind} shows a simple proof that \texttt{zero} is the
-right identity of \texttt{add} using induction on \texttt{Nat}. At a high level,
-it proceeds mostly as usual, but in the inductive \texttt{succ} case some care
-must be taken to mediate between the motive \verb;λ x: Nat. {add x zero ≃ x};
-phrased over \texttt{Nat}s, the type of \texttt{ih}, and the type expected for
-the result of each branch. Previously, we saw for the non-dependent case that
-\texttt{μ}-bound recursive functions like \texttt{ih} accept as arguments
-recursive-occurrence types like \texttt{Nat/ih}; in the dependent case, the
-result type / proof always mentions the bound variable as being \textit{casted
-  back} to the original type. In this particular example, the type of
-\texttt{ih} is therefore \verb;Π x: Nat/ih. {add (fromNat/ih x) zero ≃ fromNat/ih x};.
-
-As for the branches, in the base case \texttt{zero} the required branch type is
-the usual \verb;{add zero zero ≃ zero}; which comes from simple β-reduction. In
-the step case \texttt{succ r} the required branch type is more subtle --
-\verb;{add (succ (fromNat/ih r)) zero ≃ succ (fromNat/ih r)};, where the cast
-function has been pushed into the constructor arguments. (In general the
-sub-data for such constructors is $\eta$-expanded in the motive until the cast
-has a target to apply to -- see Section \ref{sec:positive-data} for more). Here,
-we first invoke \texttt{ih} to produce \texttt{eq} of type
-\verb;{add (fromNat/ih r) zero ≃ fromNat/ih r};. Next, we need to get the type system to
-β-reduce the expected branch type a bit so that we can rewrite by \texttt{eq}. To that
-end, we check the remainder of branch with χ against the type
-\verb;{succ (add (fromNat/ih r) zero) ≃ succ (fromNat/ih r)};, which is convertible with the
-expected type (note that the difference is that constructor \texttt{succ} has
-been pushed outside of the call to \texttt{add}). Finally, we can use ρ to
-rewrite \textit{this} expected type by the equality \texttt{eq}, producing
-expected type \verb;{succ (fromNat/ih r) ≃ succ (fromNat/ih r)}; which is true
-β, the reflexivity rule for equality.
+right identity of \texttt{add} using induction on \texttt{Nat}. In the base
+case, pattern \texttt{zero} is substituted in for \texttt{x} in the motive, and
+the expected result type of the branch is \texttt{\{add zero zero ≃ zero\}},
+which is true by reflexivity (notated \texttt{β}) after conversion. In the step case, pattern
+\texttt{succ r} is substituted in for \texttt{x} in the motive (which is
+well-kinded in general thanks to subtyping, as \texttt{succ r} has type
+\texttt{Nat}, even though \texttt{r} has type \texttt{ih/type}), and the
+expected result type of the branch is \texttt{\{add (succ r) zero ≃ succ r\}}.
+Operator χ allows users to write type annotations, so the expected type converts
+to the annotated type \texttt{\{succ (add r zero) ≃ succ r\}}, which is then
+rewritten using the inductive hypothesis \texttt{ih r}.
 
 \subsection{Reduction Rules of μ and μ'}
-In the preceding section there was a tiny white lie. The expected type
-corresponding to the branch \texttt{succ r} is \texttt{\{add (succ (fromNat/ih
-  r)) zero ≃ succ (fromNat/ih r)\}}, and we \textit{said} we used the type annotation
-construct \texttt{χ} to get this to β-reduce to a suitable type. However, using
-β-reduction alone, the normalized branch type is actually
+In Section \ref{sec:induction} there was an omission regarding convertibility of
+terms in the expected type of case branches. For example, the expected type
+corresponding to the branch \texttt{succ r} in the definition of
+\texttt{add-zero-r} above is \texttt{\{add (succ r) zero ≃ succ r\}}. By
+β-reduction alone, this reduces to
 \begin{verbatim}
-{ succ (μ add-rec. (fromNat/ih r)) {
-    | zero   ↦ zero
-    | succ p ↦ succ (add-rec p)
-  } ≃ succ (fromNat/ih r)
+{ μ rec. (succ r) {
+  | zero ➔ zero
+  | succ p ➔ succ (rec p)
+  } ≃ succ r
 }
 \end{verbatim}
-First, the arguments \texttt{succ (fromNat/ih r)} and \texttt{zero} are
-substituted into the body of \texttt{add}. Then, we note that the scrutinee
-\texttt{succ (fromNat/ih r)} of μ matches one of the given branches (the
-\texttt{succ} branch), so by what is known as δ-reduction we replace the entire
-μ expression with the branch body, substituting the variable \texttt{p} bound at
-the branch with the value \texttt{(fromNat/ih r)}. Constructs μ and \texttt{μ'}
-have this δ-reduction in common, and if we were normalzing a \texttt{μ'}
-expression this would be the end of the reduction step. For μ however, if we
-just stopped here we would have a problem -- the result of substitution would be
-\texttt{succ (add-rec (fromNat/ih r))}, but \texttt{add-rec} was bound by the
-\texttt{μ} expression we just removed! This is remedied by substituting it away
-for the original μ expression, producing the expected type given above.
 
-There is one more form of reduction that may surprise the reader, and that is
-the behavior of the generated μ-bound casting functions like
-\texttt{fromNat/ih}. The expression \texttt{fromNat/ih r} actually reduces, in a
-single step, to \texttt{r}! This may seem quite strange, as these two
-expressions do not even have the same type, but Cedilleum (like Cedille) is an
-extrinsic type theory in which a single (untyped) term can be given ascribed
-types and in which type preservation does not hold. For more on this, see
-\cite{St18_Cedille-Syntax-Semantics}.
+To get the left-hand side of this equation to be convertible with \texttt{succ
+  (add r zero)}, we need μ-reduction rules. μ-reduction is a combination of
+fix-point unrolling and is typically called δ-reduction for languages with
+inductive data-types. Here, because the scrutinee is \texttt{succ r}, then
+entire μ-expression reduces to the body of the case-branch guarded by
+\texttt{succ p}, with recursive function \texttt{rec} replaced by the entire
+μ-expression itself. Thus, the equation above reduces to
+\begin{verbatim}
+{ succ (μ rec. r {
+  | zero ➔ zero
+  | succ p ➔ succ (rec p)
+  }) ≃ succ r
+}
+\end{verbatim}
+
+\noindent where the left-hand side is now convertible with \texttt{succ (add r
+  zero)}. μ'-reduction works similarly, except there is no fixpoint to unroll.
 
 \subsection{Non-strictly Positive Datatypes}
 \label{sec:positive-data}
