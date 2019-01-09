@@ -12,10 +12,12 @@
 \usepackage{proof}
 
 \usepackage{stmaryrd}
+
 \usepackage{soul}
 % \usepackage{unicode-math}
 
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
+\DeclareUnicodeCharacter{03B7}{\ensuremath{\eta}}
 \DeclareUnicodeCharacter{0393}{\ensuremath{\Gamma}}
 \DeclareUnicodeCharacter{21A6}{\ensuremath{\to}}
 \DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
@@ -353,9 +355,9 @@ fact2 : Nat ➔ Nat
 The reader may wonder at this point what other ways \texttt{Nat} and
 recursive-occurence types like \texttt{rec/type} are related when there is a
 witness of type \texttt{Nat/Mu ·rec/type}. In addition to allowing the user to
-pattern-match on terms of type \texttt{rec/type} as they would with \texttt{Nat}
-and other data types, Cedilleum provides a way for users to coerce (with zero
-runtime cost) such terms back to the original type. As a motivating example, consider
+pattern-match on terms of type \texttt{rec/type} as they would with e.g.
+\texttt{Nat}, Cedilleum provides a way for users to coerce (with zero runtime
+cost) such terms back to the original type. As a motivating example, consider
 trying to implement the factorial function: in the constructor case \texttt{succ
 n'}, we want to multiply the original number by the factorial (calculated via
 recursion) of its predecessor. Two implementations of factorial are shown in
@@ -367,7 +369,21 @@ to convert the \texttt{n'} of type \texttt{rec/type} to a \texttt{Nat};
 \texttt{Nat} and has type \texttt{∀ R: ★. Nat/Mu ·R ➾ R ➔ Nat}. Furthermore,
 Cedilleum's built-in equality type recognizes that this term is equal to the
 identity function (after erasure -- recall that \texttt{-rec/mu} inducates that
-the witness is given as an irrelevant or erased argument to \texttt{Nat/cast}).
+the witness is given as an irrelevant or erased argument to \texttt{Nat/cast});
+this is witnessed by the proof \texttt{NatCast-id}, which holds by reflexivity.
+
+Frequently, the insertion of such casts can be deduced merely by comparing the
+``expected'' and ``actual'' type of an expression, and having these coercions
+stated explicitly is both tedious to write and to read. To that end, the type
+system of Cedilleum implements a form of subtyping between the
+recursive-occurence types and the concrete data-type. Behind the scenes, type
+inference will automatically insert the appropriate coercions (possibly after
+η-expanding the expression). A simple example of this is shown in definition
+\texttt{fact2}: the variable \texttt{n'} has type \texttt{rec/type}, and its
+``expected'' type in expression \texttt{succ n'} is \texttt{Nat}, so the
+expression is well typed through type subsumption since \texttt{rec/type <:
+  Nat}, as witnessed by evidence \texttt{rec/mu} of type \texttt{Nat/Mu
+  ·rec/type} (here bound but not used explicitly).
 
 \subsection{Reasoning via Induction}
 \label{sec:induction}
@@ -384,23 +400,25 @@ add-zero-r : Π m: Nat. {add m zero ≃ m}
 \end{figure}
 Figure \ref{fig:ex-data-ind} shows a simple proof that \texttt{zero} is the
 right identity of \texttt{add} using induction on \texttt{Nat}. In the base
-case, pattern \texttt{zero} is substituted for \texttt{x} in the motive, and
-the expected result type of the branch is \texttt{\{add zero zero ≃ zero\}},
-which is true by reflexivity (notated \texttt{β}) after conversion. In the step case, pattern
-\texttt{succ r} is substituted in for \texttt{x} in the motive (which is
-well-kinded in general thanks to subtyping, as \texttt{succ r} has type
-\texttt{Nat}, even though \texttt{r} has type \texttt{ih/type}), and the
-expected result type of the branch is \texttt{\{add (succ r) zero ≃ succ r\}}.
-Operator χ allows users to write type annotations, so the expected type converts
-to the annotated type \texttt{\{succ (add r zero) ≃ succ r\}}, which is then
-rewritten using the inductive hypothesis \texttt{ih r}.
+case, pattern \texttt{zero} is substituted for \texttt{x} in the motive, and the
+expected result type of the branch is \texttt{\{add zero zero ≃ zero\}}, which
+is true by reflexivity (notated \texttt{β}) after conversion. In the step case,
+pattern \texttt{succ r} (equivalently \texttt{succ (Nat/cast -ih/mu r)}) is
+substituted in for \texttt{x} in the motive, and the expected result type of the
+branch is \texttt{\{add (succ r) zero ≃ succ r\}} (\texttt{Nat/cast -ih/mu r}
+reduces to \texttt{r}). Operator χ allows users to write type annotations, and
+here it is used to converted the expected type to \texttt{\{succ (add r zero) ≃
+succ r\}}. Next, the ρ operator allows the user to rewrite the expected type
+using an equation, and here the equation used is the one given by the inductive
+hypothesis \texttt{ih r} of type \texttt{\{add r zero ≃ r\}}. After rewriting,
+the expected type is simply \texttt{\{succ r ≃ succ r\}} which holds by β.
 
 \subsection{Reduction Rules of μ and μ'}
-In Section \ref{sec:induction} there was an omission regarding convertibility of
-terms in the expected type of case branches. For example, the expected type
+Section \ref{sec:induction} omits some details about checking convertibility of
+terms defined using μ and μ'. For example, in Figure \ref{fig:ex-data-ind} the expected type
 corresponding to the branch \texttt{succ r} in the definition of
-\texttt{add-zero-r} above is \texttt{\{add (succ r) zero ≃ succ r\}}. By
-β-reduction alone, this reduces to
+\texttt{add-zero-r} is \texttt{\{add (succ r) zero ≃ succ r\}}. By
+β-reduction and erasure alone, this reduces to
 \begin{verbatim}
 { μ rec. (succ r) {
   | zero ➔ zero
@@ -410,12 +428,13 @@ corresponding to the branch \texttt{succ r} in the definition of
 \end{verbatim}
 
 To get the left-hand side of this equation to be convertible with \texttt{succ
-  (add r zero)}, we need μ-reduction rules. μ-reduction is a combination of
-fix-point unrolling and is typically called δ-reduction for languages with
-inductive data-types. Here, because the scrutinee is \texttt{succ r}, then
-entire μ-expression reduces to the body of the case-branch guarded by
-\texttt{succ p}, with recursive function \texttt{rec} replaced by the entire
-μ-expression itself. Thus, the equation above reduces to
+(add r zero)}, we need a μ-reduction rule. μ-reduction is a combination of
+fix-point unrolling and case-branch selection, the latter of which is usually
+called δ-reduction for languages with inductive data-types. Here, because the
+scrutinee is \texttt{succ r}, then entire μ-expression reduces to the body of
+the case-branch guarded by \texttt{succ p} (case-branch selection), with
+recursive function \texttt{rec} replaced by the entire μ-expression itself
+(fixpoint unrolling). Thus, the equation above reduces to
 \begin{verbatim}
 { succ (μ rec. r {
   | zero ➔ zero
@@ -425,14 +444,14 @@ entire μ-expression reduces to the body of the case-branch guarded by
 \end{verbatim}
 
 \noindent where the left-hand side is now convertible with \texttt{succ (add r
-  zero)}. μ'-reduction works similarly, except there is no fixpoint to unroll.
+  zero)}. μ'-reduction only performs case-branch selection.
 
 \subsection{Non-strictly Positive Datatypes}
 \label{sec:positive-data}
 In the preceeding sections, we have that seen ``cast'' functions like
-\texttt{Nat/ih} (in Figure \ref{fig:ex-data-ind}) show up in the the expected
+\texttt{Nat/cast -ih/mu} (in Section \ref{sec:induction}) show up in the the expected
 type of a case branch, and also have noted already that Cedilleum allows for
-positive but not strictly positive data type defintions. We now take a look at
+positive but not strictly positive data type defintions. We now examine
 how these two things interact.
 
 \begin{figure}[h]
@@ -441,54 +460,51 @@ data PTree : ★ =
   | leaf : PTree
   | node : ((PTree ➔ Bool) ➔ PTree) ➔ PTree
 .
-PTreeSel : ★ = (PTree ➔ Bool) ➔ PTree.
-indTree : ∀ P: PTree ➔ ★.
-    P leaf ➔ (∀ s: PTreeSel. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s))
-    ➔ Π t: PTree. P t
+
+indPTree1 : ∀ P: PTree ➔ ★.
+    P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+    Π t: PTree. P t
   = Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
-      | leaf   ↦ base
-      | node s ↦
-        [ conv-p : (PTree ➔ Bool) ➔ PTree/ih ➔ Bool
-          = λ p. λ r. p (fromPTree/ih r) ]
-        - [ s' : PTreeSel = λ p. fromPTree/ih (s (conv-p p)) ]
-        - step -s' (λ p. ih (s (conv-p p)))
-      }.
+  | leaf ➔ base
+  | node s ➔
+    [ s1 : (PTree ➔ Bool) ➔ ih/type = λ p. s (λ t. p (Nat/cast -ih/mu p)) ]
+  - [ s2 : (PTree ➔ Bool) ➔ PTree = λ p. Nat/cast -ih/mu (s1 p) ]
+  - step -s2 (λ p. ih (s1 p))
+  }.
+
+indPTree2 : ∀ P: PTree ➔ ★.
+    P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+    Π t: PTree. P t
+  = Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
+  | leaf ➔ base
+  | node s ➔ step -s (λ p. ih (s p))
+  }.
 \end{verbatim}
   \caption{A non-strictly positive infinitary tree}
   \label{fig:ptree}
 \end{figure}
 
 Figure \ref{fig:ptree} presents a definition of \texttt{PTree}, an infinitary
-tree which is not strictly positive in the \texttt{node} constructor, and a
-proof of induction for it using μ. One intuition for what kind of terms inhabit
-\texttt{PTree} is ``at a \texttt{node}, there must be some way of selecting one
-\texttt{PTree} (of infinitely many) from some partition \texttt{PTree ➔ Bool}''.
-The branch given by pattern \texttt{leaf} is the \texttt{base} case, requring a
-proof of \texttt{P leaf} which we have by assumption. For the \texttt{step} case
-given by the branch for pattern \texttt{node}, the expected type is the trickier
-\texttt{P (node s')}, where \texttt{s'} is defined as above. Recall that in our
-branch the constructor arguments have all recursive occurences of their
-inductive type replaced with a special ``abstracted'' version. In the case of
-\texttt{leaf}, the subdata \texttt{s} has type \texttt{(PTree/ih ➔ Bool) ➔
-PTree/ih}. The the naive expected branch type \texttt{P (node s)} given by
-simply substituting the pattern in for the bound \texttt{x} given in the motive
-is not well-kinded! To fix this we $\eta$-expand and cast using \texttt{fromPTree/ih}
-as needed to produce the appropriate expected type.
+tree which is not strictly positive in the \texttt{node} constructor, and two
+proofs of induction for it, one using explicit coercions and one utilizing
+subtyping to infer these coercions. As a type, \texttt{PTree} is a somewhat
+contrived example, but one intuition for what kind of terms inhabit it is ``at a
+\texttt{node}, there must be some way of selecting some sub-tree using a
+predicate \texttt{PTree ➔ Bool}''.
 
-Now we examine the body of the \texttt{node} branch itself more closely. First,
-we need a way to convert any ``partition'' \texttt{p} of type \texttt{PTree ➔
-  Bool} to \texttt{PTree/ih ➔ Bool} so that it can operate over terms of the abstracted
-type. With this we can do the same for our selector \texttt{s}, producing
-\texttt{s'}. Finally, we invoke \texttt{step} so that we can have prove
-\texttt{P (node s')} as desired. The second argument of \texttt{step} requires a
-proof that \texttt{P (s' p)} holds for any \texttt{p}. To show this, we take the
-assumed \texttt{p}, ``weaken'' it to work over the abstracted recursive types
-with \texttt{conv-p}, and pass this to \texttt{s} (and not \texttt{s'}!) to
-produce a value of type \texttt{PTree/ih} suitable for consumption by
-\texttt{ih}, which has type \texttt{Π t: PTree/ih. P (fromPTree/ih t)}. Note
-again that the proof we need to give here, \texttt{P (s' p)}, is convertible
-with the proof \texttt{P (fromPTree/ih (s (conv-p p)))} that the call to
-\texttt{ih} actually returns.
+In both versions, the branch given by patterm \texttt{leaf} corresponds to the
+\texttt{base} case, requiring a proof of \texttt{P leaf}. For the \texttt{step}
+case, the expected type is \texttt{P (node s)} (equivalently \texttt{P (node
+  s2)}, where \texttt{s2} is locally defined in \texttt{indPTree1}). Here,
+\texttt{s} has type \texttt{(ih/type ➔ Bool) ➔ ih/type}, and the two different
+occurences of \texttt{s} in the arguments to \texttt{step} require it to have
+two different but related types, corresponding resp. to the types of \texttt{s2}
+and \texttt{s1} in \texttt{indPTree1}. Again, the subtyping problems
+\texttt{(ih/type ➔ Bool) ➔ ih/type <: (PTree ➔ Bool) ➔ PTree} and
+\texttt{(ih/type ➔ Bool) ➔ ih/type <: (PTree ➔ Bool) ➔ ih/type} can be
+automatically solved, and coercions implicitly inserted, algorithmically by
+inverting the type constructors of the sub- and super-types, so definition
+\texttt{indPTree2} is also admissable.
 
 \section{Syntax}
 \label{sec:syntax}
