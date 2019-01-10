@@ -333,7 +333,6 @@ mult : Nat ➔ Nat ➔ Nat
     | zero    ➔ zero
     | succ m' ➔ add n (rec m')
   }.
-
 fact1 : Nat ➔ Nat
   = λ n. μ rec. m {
     | zero    ➔ succ zero
@@ -505,6 +504,190 @@ and \texttt{s1} in \texttt{indPTree1}. Again, the subtyping problems
 automatically solved, and coercions implicitly inserted, algorithmically by
 inverting the type constructors of the sub- and super-types, so definition
 \texttt{indPTree2} is also admissable.
+
+\subsection{Program Reuse}
+We conclude our informal introduction to Cedilleum with a somewhat more complex
+development: how to support program reuse over different data-types at zero
+run-time cost. Often, when working in a setting with dependent types,
+programmers find they must write several different versions of a datatype
+depending upon the invariants they wish to enfore by the type system. A classic
+example is non-indexed \texttt{List} and length-indexed \texttt{Vec} -- if the
+programmer has writen several functions for the former, and discovers that they
+must rework their code because they need the latter, their choices are usually
+either to re-implement the existing functionality for \texttt{Vec}, or to write
+conversion functions between \texttt{List} and \texttt{Vec} to re-use existing
+functionality. For this second option, such conversion functions usually must
+tear down one structure while rebuilding the other, taking linear time. In
+Cedileum it is possible to define \textit{zero-cost} coercions between
+\texttt{List} and \texttt{Vec} and indeed between many different types provided
+that certain conditions hold.
+
+To start, we give the definitions for \texttt{List} and for function
+\texttt{l2v'} that one could write in virtually any dependently typed language.
+
+\begin{verbatim}
+data List (A: ★): ★ =
+  | nil : List
+  | cons : A ➔ List ➔ List
+  .
+
+len : ∀ A: ★. List ·A ➔ Nat
+  = Λ A. λ xs. μ rec. xs {
+  | nil ➔ zero
+  | cons x xs ➔ succ (rec xs)
+  }.
+
+append : ∀ A: ★. List ·A ➔ List ·A ➔ List ·A
+  = Λ A. λ xs. λ ys. μ rec. xs {
+  | nil ➔ ys
+  | cons x xs ➔ cons x (rec xs)
+ }.
+
+l2v' : ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
+  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. Vec ·A (len x)) {
+  | nil       ➔ vnil ·A
+  | cons x xs ➔ vcons -(len (List/cast -ih/mu xs)) x (ih xs)
+  }.
+\end{verbatim}
+
+Next we see something unique to Cedilleum: the pairs of constructors \texttt{nil}
+and \texttt{vnil}, and \texttt{cons} and \texttt{vcons}, are provably equal.
+This is necessary (though not sufficient) in order to be able to prove
+\texttt{l2v-reflection}, which states that conversion function \texttt{l2v}
+behaves extensionally like an identity function.
+
+\begin{verbatim}
+-- constructor equalities
+l2v-eq-nil  : {nil  ≃ vnil}  = β.
+l2v-eq-cons : {cons ≃ vcons} = β.
+
+-- reflection law
+l2v-reflection : ∀ A: ★. Π xs: List ·A. {l2v xs ≃ xs}
+  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. {l2v x ≃ x}) {
+  | nil ➔ β
+  | cons x xs ➔
+    χ {vcons x (l2v xs) ≃ cons x xs}
+  - ρ (ih xs) - β
+  }.
+\end{verbatim}
+
+How is it that Cedilleum decides these constructors are convertible? The precise
+details depend upon the shape of the λ-terms to which Cedilleum elaborates the
+data-type declarations, but, if \texttt{c} is a constructor of type \texttt{C}
+and \texttt{d} is a constructor of type \texttt{D} (not necessarily distinct for
+\texttt{C}), then the general rules are:
+
+\begin{enumerate}
+\item \texttt{C} and \texttt{D} must have the same number of constructors.
+
+  In the definition \texttt{data Unit: ★ = | triv : Unit .}, \texttt{triv} would
+  not be equal to any constructor of any data-type seen so far in this document,
+  as \texttt{Unit} has only one constructor and \texttt{Nat}, \texttt{Bool},
+  \texttt{List}, \texttt{Vec}, and \texttt{PTree} all have two constructors.
+
+\item \texttt{c} and \texttt{d} must occur in the same order in the constructor
+  list of their respective data-type declaration
+
+  For example, \texttt{nil} and \texttt{vnil} are both the first listed
+  constructor for their types, but for the data-type
+\begin{verbatim}
+data List' (A: ★): ★ =
+  | cons' : A ➔ List' ➔ List'
+  | nil'  : List'
+.
+\end{verbatim}
+\noindent which is isomorphic to \texttt{List}, constructor \texttt{nil'} is
+\textit{not} convertible with \texttt{nil} and zero-cost reuse between
+\texttt{List} and \texttt{List'} is \textit{not} possible. This same condition also
+prevents different constructors of the same type from being seen as convertible
+(e.g. \texttt{tt} and \texttt{ff} of type \texttt{Bool} are provably distinct).
+
+\item constructors \texttt{c} and \texttt{d} must take the same number of
+  unerased arguments. Erased arguments, and even the types of unerased
+  arguments, do not matter.
+
+  This is how, in particular, \texttt{cons} and \texttt{vcons} can be equated
+  even though \texttt{vcons} takes an additional (erased) \texttt{Nat} argument.
+  This also means that some strange constructor equalities hold:
+
+\begin{verbatim}
+eq-zero-tt   : {zero ≃ tt} = β. -- {succ ≃ ff} is not provable
+eq-zero-leaf : {zero ≃ leaf} = β. 
+eq-succ-node : {succ ≃ node} = β.
+\end{verbatim}
+
+  Despite the fact that each constructor of \texttt{Nat} is convertible with a
+  constructor of \texttt{PTree}, it is not possible to define a conversion
+  function \texttt{n2pt : Nat ➔ PTree} for which \texttt{∀ x: Nat. \{n2pt x ≃
+    x\}} is provable, which (we will see next) is needed for zero-cost conversions.
+\end{enumerate}
+
+To recapitulate, we have a linear-time conversion function \texttt{l2v'} that
+behaves extensionally like the identity function. With this, and with the term
+construct \texttt{φ}, we can write a conversion function that after erasure is
+\textit{intensionally} equal to the identity:
+
+\begin{verbatim}
+l2v : ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
+  = Λ A. λ xs. φ (l2v-reflection xs) - (l2v' xs) {xs}.
+
+eq-l2v-id = {l2v ≃ λ x. x} = β.
+\end{verbatim}
+\noindent In \texttt{l2v}, the entire φ expression erases to the term in curly braces
+(\texttt{xs}), has the type \texttt{Vec ·A (len xs)} of subexpression
+\texttt{l2v' xs}, and requires a proof that these two terms are equal (which is
+satisfied by \texttt{l2v-reflection xs}).
+
+From this point, the reuse is straightfoward: reuse in the other direction, of
+\texttt{Vec} as \texttt{List}, is defined and two lemmas are needed, one
+relating the vector index to list length after conversion, and one relating the
+length of the list resutling from \texttt{append} to its two input lists. The
+payoff comes at the last line of the code listing below: function
+\texttt{vappend'} is definitionally equal to \texttt{append}, meaning our
+conversions between the two data-structures has no run-time cost!
+
+\begin{verbatim}
+v2l' : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+  = Λ A. Λ n. λ xs. μ rec. xs {
+  | vnil ➔ nil ·A
+  | vcons -i x xs ➔ cons x xs
+  }.
+
+v2l-reflection : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {v2l' xs ≃ xs}
+  = Λ A. Λ n. λ xs. μ ih. v @(λ i: Nat. λ x: Vec ·A i. {v2l' x ≃ x}) {
+  | vnil ➔ β
+  | vcons -i x xs ➔
+    χ {cons x (v2l' xs) ≃ vcons x xs}
+  - ρ (ih -i xs) - β
+  }.
+
+v2l : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+  = Λ A. Λ n. λ xs. φ (v2l-reflection -n xs) - (v2l' -n xs) {xs}.
+
+v2l-len : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {n ≃ len (v2l xs)}
+  = Λ A. Λ n. λ xs. μ ih. xs @(λ i: Nat. λ x: Vec ·A i. {i ≃ len (v2l x)}) {
+  | vnil ➔ β
+  | vcons -n' x xs ➔ ρ (ih -n' xs) - β
+  }.
+
+append-len : ∀ A: ★. Π xs: List ·A. Π ys: List ·A.
+    {add (len xs) (len ys) ≃ len (append xs ys)}
+  = Λ A. λ xs. λ ys. μ ih. xs @(λ x: List ·A. {add (len x) (len ys) ≃ len (append x ys)}) {
+  | nil ➔ β
+  | cons x xs ➔
+    χ {succ (add (len xs) (len ys)) ≃ succ (len (append xs ys))}
+  - ρ (ih xs) - β
+  }.
+
+vappend' : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+  = Λ A. Λ m. Λ n. λ xs. λ ys.
+    [ xs' = v2l -m xs] - [ m-eq = v2l-len -m xs ]
+  - [ ys' = v2l -n ys] - [ n-eq = v2l-len -n ys ]
+  - ρ m-eq - ρ n-eq - ρ (append-len (v2l -m xs) (v2l -n ys))
+  - l2v (append' xs' ys').
+
+v2l-eq-append : {append ≃ vappend'} = β.
+\end{verbatim}
 
 \section{Syntax}
 \label{sec:syntax}
