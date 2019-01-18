@@ -47,6 +47,7 @@
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
 \newcommand{\indast}[5]{\texttt{Ind}_{#1} [#2] (#3 : #4 = #5)}
+\newcommand{\indsche}[6]{\texttt{Ind}[#1,#2,#3,#4,#5,#6]}
 \newcommand{\lowerc}[1]{\lfloor {#1} \rfloor}
 \newcommand{\lenc}[1]{\|#1\|}
 \newcommand{\vars}[1]{{\overline{#1}}}
@@ -1092,15 +1093,16 @@ vlength : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ Nat
 \end{figure}
 
 The definition of the erasure function given in Figure \ref{fig:eraser} takes
-the annotated terms from Figures \ref{fig:kinds-types} and \ref{fig:ann-terms} to
-the untyped terms of Figure \ref{fig:pure-terms}. The last two equations
-indicate that any type or erased arguments in the the zero or more $vararg$'s of
-pattern-match case are indeed erased. The additional constructs introduced in
-the annotated term language such as β, φ, and ρ, are all erased to the language
-of pure terms.
+the annotated terms from Figures \ref{fig:kinds-types} and \ref{fig:ann-terms}
+to the untyped terms of Figure \ref{fig:pure-terms}. The last two equations
+indicate how the sequence of variables ($varargs$) bound by a constructor
+pattern are erased. The additional constructs introduced in the annotated term
+language such as β, φ, and ρ, are also all erased to the language of pure terms.
 
 Reduction rules are defined for the untyped term language. In essence, to run a
-Cedilleum program you first erase it, then reduce it.
+Cedilleum program you first erase it, then reduce it. Full conversion in
+Cedilleum is defined as the compatible closure of $\reduce\ =\ \reduce_{\beta}
+\bigcup \reduce_{\mu'} \bigcup \reduce_{\mu}$
 
 \paragraph{$\beta$-reduction}
 \[ (\absu{\lambda}{x}{p_1})\ p_2 \reduce_{\beta} [p_2/x]p_1 \]
@@ -1121,15 +1123,21 @@ branch body $f$ after substituting each of the bound variables of the branch
 pattern $u_1 ... u_n$ with the scrutinee's arguments $p_1 ... p_n$
 
 \paragraph{$\mu$-reduction}
-\[ \infer[\mu]
-  { \mu\ u. (c\ p_1 ... p_n)\ \{ c_i\ u_{i1} ... u_{ij_i} \mapsto f_i
-    \}_{i=1..n} \reduce_{\mu} [p_1 ... p_n/u_1 ... u_n][u/p_{\mu}]f}
-  {
-    \exists i.\ c\!=\!c_i \land j_i\!=\!n
-    \quad p_{\mu} = \absu{\lambda}{v}{\mu\ u.\ v\ \{c_i\ u_{i1} ... u_{ij_i}
-      \mapsto f_i\}_{i=1..n}}
-  }
+\[
+  \mu\ u. (c_k\ \vars{t})\ \{ c_i\ \vars{x_i} \mapsto f_i\}_{i=1..n} \reduce_{\mu}
+  [p_{\mu}/u][\vars{t/x_k}]\ f_k\
 \]
+\noindent where $p_{\mu} = \absu{\lambda}{v}{\mu\ u. v \{c_i\ \vars{x_i} \mapsto f_i\}_{i=1..n}}$
+\\ 
+% \[ \infer[\mu]
+%   { \mu\ u. (c\ p_1 ... p_n)\ \{ c_i\ u_{i1} ... u_{ij_i} \mapsto f_i
+%     \}_{i=1..n} \reduce_{\mu} [p_1 ... p_n/u_1 ... u_n][u/p_{\mu}]f}
+%   {
+%     \exists i.\ c\!=\!c_i \land j_i\!=\!n
+%     \quad p_{\mu} = \absu{\lambda}{v}{\mu\ u.\ v\ \{c_i\ u_{i1} ... u_{ij_i}
+%       \mapsto f_i\}_{i=1..n}}
+%   }
+% \]
 
 $\mu$-reduction is similar to $\mu'$-reduction, but combines with it fixpoint
 reduction. Again, if the scrutinee $c\ p_1 ... p_n$ matches one of the branch
@@ -1317,61 +1325,114 @@ explicit top-level annotation for a term.
 \section{Inductive Datatypes}
 \label{sec:ind-data}
 
-Before we can provide the typing rules for introduction and usage of inductive
-datatypes, some auxiliary definitions must be given. The syntax for these, and
-the structure of this entire section, borrows heavily from the conventions of the Coq
-documentation\footnote{https://coq.inria.fr/refman/language/cic.html\#inductive-definitions}.
-The author believes it is worthwhile to restate this development in terms of the
-Cedilleum type system, rather than merely pointing readers to the Coq
-documentation and asking them to infer the differences between the two systems.
-
-To begin with, the production $defDataType$ gives the concrete syntax for datatype definitions,
-but it is not a very useful notation for representing one in the abstract syntax
-tree. In our typing rules we will instead use the notation
-$\indast{M}{p}{I}{K}{\Sigma}$, where
+While the grammatical rule $defDataType$ gives the concrete syntax for datatype
+definitions, it is not a very useful notation for representing and manipulating
+such an object in the AST. We begin this section, then, by describing a more
+concise syntax for datatype definitions. The notation used in this section
+borrows heavily from the conventions of the Coq documentations
+\footnote{https://coq.inria.fr/refman/language/cic.html\#inductive-definitions}.
+One additional abuse of notation we shall use heavily throughout the remainder
+of this document is for application and abstraction of a sequence of terms and
+types. If $\Gamma$ is an ordered context binding term and type variables, then
 
 \begin{itemize}
-\item $M$ is a meta-variable ranging over
-  constant labels ``C'' and ``A'' (used to distinguish \textbf{c}oncrete and
-  \textbf{a}bstracted inductive definitions -- more on this below)
-\item $p$ is the number of \textbf{p}arameters of the inductive definition
-\item $\Gamma_I$ is a typing context binding \textit{one} type variable $I$, the
-  inductive type being defined
-\item $\Sigma$ is a typing context containing the $n$ data constructors
-  $c_1,...,c_n$ of $I$.
+\item $t\ \Gamma$ and $T\ Gamma$ represent the application of term $t$ (resp.
+  type $T$) to each variable in $\Gamma$ in order of appearance. The relevance
+  modality of the application -- that is, for each variable $x$ in $\Gamma$,
+  whether it is passed as a relevant or irrelevant argument to $t$ -- will
+  always be disambiguated by the type of $t$
+\item $\absu{\lamLam}{\Gamma}{t}$ and $\absu{\lambda}{\Gamma}{t}$ represents a
+  sequence of abstractions at the term (resp. type) level, followed by term $t$
+  (resp. type $T$). At the term level, the appropriate abtraction (erased or
+  unerased) is determined by the expected type of the expression and the sort
+  of the variable (e.g. at the term level all types are abstracted over erased).
 \end{itemize}
 
-For example, consider the \texttt{List} and \texttt{Vec} definitions from
-Section \ref{sec:syntax}. These will be represented in the AST as
-\\ \\
-\[\indast{\text{C}}{1}{List : ★ ➔ ★}
-{\begin{array}{lcl}
-   nil & : & ∀ A : ★ . List \cdot A
-   \\ cons & : & ∀ A : ★ . A ➔ List \cdot A ➔ List \cdot A
- \end{array}
-}\] and
-\\
-\[\indast{\text{C}}{1}{Vec : ★ ➔ Nat ➔ ★}
-{\begin{array}{lcl}
-   vnil & : & ∀ A: ★.Vec \cdot\!A\ zero
-   \\ vcons & : & ∀ A: ★. ∀ n :Nat. A ➔ Vec \cdot\!A\ n ➔ Vec \cdot\!A\ (succ\ n)
- \end{array}
-}\]
+\subsection{Representation of Datatype Definition in AST}
 
-\noindent All inductive types the user will define will be concrete inductive
-defintions, and have global scope. Abstracted definitions are automiatically
-generated during fix-point pattern matching, and have local scope.
+Notation $\indsche{I}{\Gamma_P}{K}{R}{\Sigma}{\Gamma_G}$ represents a declaration of
+an inductive datatype named $I$ where:
+\begin{itemize}
+\item $\Gamma_P$ is the context of parameters;
+\item $K$ is the index-sort of $I$; that is to say type $I\ \Gamma_P$ has kind
+  $K$;
+\item $R$ is a (fresh) type variable of kind $K$, serving as a placeholder for
+  recursive occurrences of the inductively defined type in the type signatures
+  of the data constructors;
+\item $\Sigma$ is the context associating constructors with their type
+  signatures;
+\item $\Gamma_G$ binds additional fresh (automatically generated) identifiers in
+  the global context which help enable CoV induction -- more on this below.
+\end{itemize}
 
-For an inductive datatype definition to be well-formed, it must satisfy the
-following conditions (each of which is explained in more detail in Subsections
-\ref{ssec:inductive-aux-defs} and \ref{ssec:inductive-wf-def}):
+For example, the datatype declaration for \texttt{Vec} in the concrete syntax:
+\begin{verbatim}
+data Vec (A: ★): Nat ➔ ★ =
+  | vnil  : Vec zero
+  | vcons : ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n)
+  .
+\end{verbatim}
+
+corresponds to the following object in the abstract syntax:
+\[
+  \indsche{Vec}{\ann{A}{★}}{Nat ➔ ★}{R}{\Sigma}{\Gamma_G}
+\]
+\noindent where
+\[
+  \begin{array}{lcl}
+    \Sigma
+    & =
+    & \begin{array}{lcl}
+        \texttt{vnil} & : & \texttt{∀A:★.Vec ·A zero}
+        \\ \texttt{vcons} & : & \texttt{∀A:★.∀n:Nat.A ➔ R n ➔ Vec ·A (S n)}
+      \end{array}
+    \\ \\ \Gamma_G
+    & =
+    & \begin{array}{lcl}
+        \texttt{Is/Vec} : & \texttt{★ ➔ (Nat ➔ ★) ➔ ★}
+        \\ \texttt{is/Vec} : & \texttt{∀ A:★. Is/Vec ·A ·(Vec ·A)}
+        \\ \texttt{to/Vec} : & \texttt{∀ A:★. ∀ R: Nat ➔ ★.Is/Vec ·A ·R ➾ ∀ n:Nat.R n ➔ Vec ·A n = λ x.x}
+      \end{array}
+  \end{array}
+\]
+
+In the above definition of $\Gamma_P$, understand that
+\begin{itemize}
+  \item \texttt{Is/}$I$ is an automatically-generated type 
+\end{itemize}
+
+(where again $\Gamma_G$ will be explained below). Note that the
+programmer writes in the concrete syntax \texttt{Vec n} for the type of the
+recursive argument to constructor \texttt{vcons}; it is straightforward to
+translate this more intuitive form of datatype definition to the internal one in
+which recursive occurrences are marked explicitly with a fresh type variable
+$R$.
+\subsection{Well-formedness of Datatype Definition}
+For an inductive datatype definition
+$\indsche{I}{\Gamma_P}{K}{\Sigma}{\Gamma_G}$ to be well-formed, it must satisfy
+the following conditions:
 
 \begin{itemize}
-\item The kind of $I$ must be (at least) a \textit{p-arity of kind ★}.
-\item The types of each $id \in \Sigma$ must be \textit{types of constructors
-    of $I$}
-\item The definition must satisfy the \textit{non-strict} positivity condition.
+\item $I$ must have (well-formed) kind $\abs{\Pi}{\Gamma_P}{K}$
+  Ensuring this is trivial from the concrete syntax
+\item The types of each constructor $c \in \Sigma$ must be \textit{types of
+    constructors of I} (c.f. Section \ref{ssec:inductive-aux-defs})
+\item The types of each constructor $c \in \Sigma$ must satisfy the (non-strict)
+  positivity condition for $R$ (c.f. Section \ref{ssec:inductive-aux-defs})
 \end{itemize}
+
+\subsection{}
+
+% For an inductive datatype definition to be well-formed, it must satisfy the
+% following conditions (each of which is explained in more detail in Subsections
+% \ref{ssec:inductive-aux-defs} and \ref{ssec:inductive-wf-def}):
+
+% \begin{itemize}
+% \item The kind of $I$ must be (at least) a \textit{p-arity of kind ★}.
+% \item The types of each $id \in \Sigma$ must be \textit{types of constructors
+%     of $I$}
+% \item The definition must satisfy the \textit{non-strict} positivity condition.
+% \end{itemize}
 
 Similarly, the notation in the grammar of Cedilleum $\mu'$ and $\mu$ for pattern
 matching is inconvenient, and we will represent them in the AST as resp.
@@ -1704,31 +1765,31 @@ we will take more care to distinguish the abstract constructors (see Subsection
       \begin{array}{c}
         \begin{array}{cccc}
           \Gamma \decsyn t : I\ \vars{T}\ \vars{s}
-          & \Delta(I) = \indast{\text{C}}{p}{\Gamma_I}{\Sigma}
+          & \Delta(I) = \indast{\text{C}}{p}{I}{K}{\Sigma}
           & \Gamma_I(I) =
             \absu{\Pi}{\Gamma_P}{\absu{\Pi}{\Gamma_{\text{D}}}{★}},\lenc{\Gamma_P}
             = p
-          & Hist(\Delta,I,\vars{T},I') = \indast{\text{A}}{0}{\Gamma_{I'}}{\Sigma'}
+          & Hist(\Delta,I,\vars{T},I') = \indast{\text{A}}{0}{I'}{K}{\Sigma'}
         \end{array}
-        \\ \\
-        \begin{array}{cc}
-          \Gamma' = \Gamma,\Gamma_{I'},
-          \ann
-           {x_{\text{to}}=\absu{\Lambda}{\Gamma_D}{\absu{\lambda}{x}{x}}}
-           { \absu{\forall}{\Gamma_{\text{D}}}{I'\
-            \Gamma_{\text{D}} \to I\ \vars{T}\
-            \Gamma_{\text{D}}}},
-          \ann{x_{\text{rec}}}{\absu{\forall}{\Gamma_{\text{D}}}{\abs{\Pi}{x}{I'\
-          \Gamma_{\text{D}}}{P\ \Gamma_{\text{D}}\ (x_{\text{to}}\ \Gamma_D\ x)}
-          }}
-          & \Delta' = \Delta,Hist(\Delta,I,\vars{T},I')
-        \end{array}
-        \\ \\
-        \begin{array}{cc}
-          % P' = \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \vars{T}\ \Gamma_D}{P\ 
-          % \Gamma_D\ x} }
-          \wfpat{\Gamma',\Delta'}{\Delta'(I')}{\varnothing}{\mu'(t,P,t_{i=1..n})}
-        \end{array}
+        % \\ \\
+        % \begin{array}{cc}
+        %   \Gamma' = \Gamma,\Gamma_{I'},
+        %   \ann
+        %    {x_{\text{to}}=\absu{\Lambda}{\Gamma_D}{\absu{\lambda}{x}{x}}}
+        %    { \absu{\forall}{\Gamma_{\text{D}}}{I'\
+        %     \Gamma_{\text{D}} \to I\ \vars{T}\
+        %     \Gamma_{\text{D}}}},
+        %   \ann{x_{\text{rec}}}{\absu{\forall}{\Gamma_{\text{D}}}{\abs{\Pi}{x}{I'\
+        %   \Gamma_{\text{D}}}{P\ \Gamma_{\text{D}}\ (x_{\text{to}}\ \Gamma_D\ x)}
+        %   }}
+        %   & \Delta' = \Delta,Hist(\Delta,I,\vars{T},I')
+        % \end{array}
+        % \\ \\
+        % \begin{array}{cc}
+        %   % P' = \absu{\lambda}{\Gamma_D}{\abs{\lambda}{x}{I\ \vars{T}\ \Gamma_D}{P\ 
+        %   % \Gamma_D\ x} }
+        %   \wfpat{\Gamma',\Delta'}{\Delta'(I')}{\varnothing}{\mu'(t,P,t_{i=1..n})}
+        % \end{array}
       \end{array}
       }
     \end{array}
