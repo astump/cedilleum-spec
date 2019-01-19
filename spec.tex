@@ -47,7 +47,11 @@
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
 \newcommand{\indast}[5]{\texttt{Ind}_{#1} [#2] (#3 : #4 = #5)}
+% inductive-declaration scheme
+% μ' scheme, μ scheme
 \newcommand{\indsche}[6]{\texttt{Ind}[#1,#2,#3,#4,#5,#6]}
+\newcommand{\mupsche}[4]{μ'[#1,#2,#3,#4]}
+\newcommand{\musche}[5]{μ[#1,#2,#3,#4,#5]}
 \newcommand{\lowerc}[1]{\lfloor {#1} \rfloor}
 \newcommand{\lenc}[1]{\|#1\|}
 \newcommand{\vars}[1]{{\overline{#1}}}
@@ -276,7 +280,7 @@ Figure \ref{fig:ex-data-div} very similar to the one above and which is
 \begin{figure}[h]
 \begin{verbatim}
 pred' : ∀ R: ★. Nat/Mu ·R ➾ R ➔ R
-  = Λ R. Λ muWit. λ r. μ'<muWit> r {| zero ➔ r | succ r' ➔ r'}.
+  = Λ R. Λ muWit. λ r. μ'<muWit> r {| zero ➔ r | succ p ➔ p}.
 
 pred : Nat ➔ Nat = pred' -Nat/mu .
 
@@ -1336,12 +1340,13 @@ of this document is for application and abstraction of a sequence of terms and
 types. If $\Gamma$ is an ordered context binding term and type variables, then
 
 \begin{itemize}
-\item $t\ \Gamma$ and $T\ Gamma$ represent the application of term $t$ (resp.
-  type $T$) to each variable in $\Gamma$ in order of appearance. The relevance
+\item $t\ \Gamma$ and $T\ \Gamma$ represent the application of term $t$ (resp.
+  type $T$) to each variable in $\Gamma$ in order of appearance. The erasure
   modality of the application -- that is, for each variable $x$ in $\Gamma$,
   whether it is passed as a relevant or irrelevant argument to $t$ -- will
-  always be disambiguated by the type of $t$
-\item $\absu{\lamLam}{\Gamma}{t}$ and $\absu{\lambda}{\Gamma}{t}$ represents a
+  always be disambiguated by the type of term $t$ (there is no erased
+  application at the type level).
+\item $\absu{\lamLam}{\Gamma}{t}$ and $\absu{\lambda}{\Gamma}{T}$ represents a
   sequence of abstractions at the term (resp. type) level, followed by term $t$
   (resp. type $T$). At the term level, the appropriate abtraction (erased or
   unerased) is determined by the expected type of the expression and the sort
@@ -1350,13 +1355,13 @@ types. If $\Gamma$ is an ordered context binding term and type variables, then
 
 \subsection{Representation of Datatype Definition in AST}
 
-Notation $\indsche{I}{\Gamma_P}{K}{R}{\Sigma}{\Gamma_G}$ represents a declaration of
+Notation $\indsche{I}{\Gamma_P}{\Gamma_K}{R}{\Sigma}{\Gamma_G}$ represents a declaration of
 an inductive datatype named $I$ where:
 \begin{itemize}
 \item $\Gamma_P$ is the context of parameters;
-\item $K$ is the index-sort of $I$; that is to say type $I\ \Gamma_P$ has kind
-  $K$;
-\item $R$ is a (fresh) type variable of kind $K$, serving as a placeholder for
+\item $\Gamma_K$ binds the indices of type $I$; that is to say type $I\ \Gamma_P$ has kind
+  $Π\ \Gamma_K: ★$;
+\item $R$ is a (fresh) type variable of kind $Π\ \Gamma_K. ★$, serving as a placeholder for
   recursive occurrences of the inductively defined type in the type signatures
   of the data constructors;
 \item $\Sigma$ is the context associating constructors with their type
@@ -1375,7 +1380,7 @@ data Vec (A: ★): Nat ➔ ★ =
 
 corresponds to the following object in the abstract syntax:
 \[
-  \indsche{Vec}{\ann{A}{★}}{Nat ➔ ★}{R}{\Sigma}{\Gamma_G}
+  \indsche{\texttt{Vec}}{\ann{\texttt{A}}{★}}{\texttt{Π n:Nat.★}}{\texttt{R}}{\Sigma}{\Gamma_G}
 \]
 \noindent where
 \[
@@ -1389,98 +1394,132 @@ corresponds to the following object in the abstract syntax:
     \\ \\ \Gamma_G
     & =
     & \begin{array}{lcl}
-        \texttt{Is/Vec} : & \texttt{★ ➔ (Nat ➔ ★) ➔ ★}
-        \\ \texttt{is/Vec} : & \texttt{∀ A:★. Is/Vec ·A ·(Vec ·A)}
-        \\ \texttt{to/Vec} : & \texttt{∀ A:★. ∀ R: Nat ➔ ★.Is/Vec ·A ·R ➾ ∀ n:Nat.R n ➔ Vec ·A n = λ x.x}
+        \texttt{Is/Vec} & : & \texttt{Π A: ★. (Nat ➔ ★) ➔ ★}
+        \\ \texttt{is/Vec} & : & \texttt{∀ A:★. Is/Vec ·A ·(Vec ·A)}
+        \\ \texttt{to/Vec} & : & \texttt{∀ A:★. ∀ R: Nat ➔ ★.Is/Vec ·A ·R ➾ ∀ n:Nat.R n ➔ Vec ·A n}
+        \\                 & = & \texttt{λ x.x}
       \end{array}
   \end{array}
 \]
 
-In the above definition of $\Gamma_P$, understand that
+\noindent In the above definition for $\Gamma_G$, understand that
 \begin{itemize}
-  \item \texttt{Is/}$I$ is an automatically-generated type 
+  \item \texttt{Is/Vec} is an automatically-generated type of ``witnesses''
+    that some type can be pattern-matched upon just like \texttt{Vec} can; this
+    is exists to support CoV induction
+  \item \texttt{is/Vec} is the (trivial) witness that \texttt{Vec} behaves like
+    \texttt{Vec} as far as pattern-matching is concerned
+  \item \texttt{to/Vec} is a coercion from some type \texttt{R} to \texttt{Vec ·A},
+    provided there is an \texttt{Is/Vec ·A ·R} witness.
+
+    This coercions is ``zero-cost'' in the sense that it is defined to be equal
+    to \texttt{λx.x}
 \end{itemize}
 
-(where again $\Gamma_G$ will be explained below). Note that the
-programmer writes in the concrete syntax \texttt{Vec n} for the type of the
-recursive argument to constructor \texttt{vcons}; it is straightforward to
-translate this more intuitive form of datatype definition to the internal one in
-which recursive occurrences are marked explicitly with a fresh type variable
-$R$.
+The purposes of these global definitions will become more clear when we give a
+formal treatment of μ (combined fixpoint and pattern-matchin) and μ' (``mere''
+pattern matching) below.
+
 \subsection{Well-formedness of Datatype Definition}
 For an inductive datatype definition
-$\indsche{I}{\Gamma_P}{K}{\Sigma}{\Gamma_G}$ to be well-formed, it must satisfy
+$\indsche{I}{\Gamma_P}{\Gamma_K}{R}{\Sigma}{\Gamma_G}$ to be well-formed, it must satisfy
 the following conditions:
 
 \begin{itemize}
-\item $I$ must have (well-formed) kind $\abs{\Pi}{\Gamma_P}{K}$
+\item $I$ must have (well-formed) kind $\absu{\Pi}{\Gamma_P}{\absu{\Pi}{\Gamma_K}{★}}$
+
   Ensuring this is trivial from the concrete syntax
-\item The types of each constructor $c \in \Sigma$ must be \textit{types of
-    constructors of I} (c.f. Section \ref{ssec:inductive-aux-defs})
-\item The types of each constructor $c \in \Sigma$ must satisfy the (non-strict)
+\item The type $T$ of each constructor $\ann{c}{T} \in \Sigma$ must be a \textit{type of
+    constructor of I} (c.f. Section \ref{ssec:inductive-aux-defs})
+\item The type $T$ of each constructor $\ann{c}{T} \in \Sigma$ must satisfy the (non-strict)
   positivity condition for $R$ (c.f. Section \ref{ssec:inductive-aux-defs})
+\item $\Gamma_G$ must bind precisely the following (these are added to the
+  global context):
+  \begin{itemize}
+  \item \texttt{Is/$I$: Π $\Gamma_P$. K ➔ ★}
+
+    The name bound here is literally the string concatenation of
+    ``\texttt{Is/}'' with the user-given name for the data-type $I$
+  \item \texttt{is/$I$: ∀ $\Gamma_P$. Is/$I$ $\Gamma_P$ ·$(I$ $\Gamma_P)$}
+  \item \texttt{to/$I$: ∀ $\Gamma_P$. ∀ R: K. Is/$I$ $\Gamma_P$ R ➾ ∀
+      $\Gamma_K$. R $\Gamma_K$ ➔ $I\ \Gamma_P\ \Gamma_K$ = λ x.x}
+  \end{itemize}
+
+  Collision with user-given definitions is avoided by prohibiting such
+  user-supplied names from having the character ``\texttt{/}'' present.
 \end{itemize}
 
-\subsection{}
+We will write judgment $\indsche{I}{\Gamma_P}{\Gamma_K}{R}{\Sigma}{\Gamma_G}\ wf$
+to indicate that a datatype declaration is well-formed.
 
-% For an inductive datatype definition to be well-formed, it must satisfy the
-% following conditions (each of which is explained in more detail in Subsections
-% \ref{ssec:inductive-aux-defs} and \ref{ssec:inductive-wf-def}):
-
-% \begin{itemize}
-% \item The kind of $I$ must be (at least) a \textit{p-arity of kind ★}.
-% \item The types of each $id \in \Sigma$ must be \textit{types of constructors
-%     of $I$}
-% \item The definition must satisfy the \textit{non-strict} positivity condition.
-% \end{itemize}
-
-Similarly, the notation in the grammar of Cedilleum $\mu'$ and $\mu$ for pattern
-matching is inconvenient, and we will represent them in the AST as resp.
-$\mu'(t,P,t_{i=1..n})$ and
-$\mu(x_{\text{rec}},I',x_{\text{to}},t,P,t_{i=1..n})$. Translation from the form
-given in the grammar to this form is discussed in detail below, but is as
-expected. In particular, we enforce that patterns are exhaustive and
-non-overlapping, and that $I'$ and $x_{\text{to}}$ (which correspond to the
-automatically generated identifiers like \texttt{Nat/ih} and \texttt{fromNat/ih}
-from the introduction) are fresh w.r.t the global and local
-context. For example, consider the pattern-matches given in the code listings
-for \texttt{isvnil} and \texttt{vlength} above. These would be translated into
-the AST as
-\\ \\
+\subsection{Fixpoint-style recursion and Pattern Matching}
+Similarl to datatype declarations, the notation used in the concrete syntax of
+Cedilleum for μ (for combined fixpoint recursion and pattern matching) and μ'
+(for mere pattern matching) is inconveneient. In the AST we will represent a μ'
+expression as
 \[
-  \mu'(xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Bool}},
-  \begin{array}{l}
-    \absu{\texttt{tt}}
-    \\ \absu{\Lambda}{n}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\texttt{ff}}}}
-  \end{array}
-  )
-\] and
-\[ \mu(len, Vec/len, fromVec/len,xs,\absu{\Lambda}{n}{\absu{\lambda}{x}{Nat}},
-  \begin{array}{l}
-    \texttt{zero}
-    \\ \absu{\Lambda}{n}{\absu{\lambda}{x}{\absu{\lambda}{xs}{succ\ (len\ \mhyph
-    n\ xs)}}}
-    % \absu{\Lambda}{n}{\absu{\Lambda}{m}{\absu{\lambda}{x}{\absu{\lambda}{xs}{\absu{\Lambda}{eq}{suc\
-    % (len\ \mhyph n\ xs)}}}}}
-  \end{array})
+  \mupsche{t_s}{w}{P}{\vars{t}}
+\]
+\noindent where
+\begin{itemize}
+\item $t_s$ is the scrutinee for case analysis;
+\item $w$ is the witness that $t_s$ is valid for case-analysis
+\item $P$ is the motive for (dependent) pattern matching;
+\item $\vars{t}$ are the case branches;
+\end{itemize}
+
+For a simple example, the μ'-expression in the body of predecessor in Figure
+\ref{fig:ex-data-div}, \texttt{pred'}, would be represented as
+\[
+  \mupsche{\texttt{r}}{\texttt{muWit}}{\texttt{λx:Nat.R}}{
+    \texttt{r}, \texttt{λp.p}
+  }
 \]
 
-\noindent In general, the generated name for $I'$ and $x_{\text{to}}$ that users
-will write in Cedilleum programs will be of the form ``$I\texttt{/}x_{\text{rec}}$''
-and ``$\texttt{from}I\texttt{/}x_{\text{rec}}$''.
-
-For a pattern construct ($\mu$ or $\mu'$) in the AST to be well-formed, it must satisfy the
-following conditions (each of which is, again, explained in more detail in
-Subsections \ref{ssec:pattern-valid-elim}, \ref{ssec:pattern-wf-pat}, and
-\ref{ssec:patern-abstracted-gen}):
-
+μ-expressions are represented in the AST as
+\[
+  \musche{x_μ}{t_s}{P}{\Gamma_L}{\vars{t}}
+\]
+\noindent where
 \begin{itemize}
-\item The motive $P$ must be well-kinded
-\item $P$ must be a legal motive to be used in eliminating the inductive type
-  $I$ of the scrutinee $t$
-\item Each branch $t_i$ must have the type expected given the constructor $c_i
-  \in \Sigma$ and the motive $P$.
+\item $x_{μ}$ is the name given for the function being defined in fixpoint style
+\item $t_s$ is the scrutinee for case-analysis and whose recursive subdata will
+  recursed upon
+\item $P$ is the motive for (dependent) pattern-matching
+\item $\vars{t}$ are the case branches
+\item $\Gamma_L$ are (automatically generated) definitions in-scope of the case
+  branches
 \end{itemize}
+
+As an example, in the definition of subtraction in Figure
+\ref{fig:ex-data-div}, \texttt{minus'}, the μ-expressions would be represented
+as
+\[
+  \musche{\texttt{rec}}{\texttt{n}}{\Gamma_L}{\texttt{λn:Nat.R}}
+  {\begin{array}{c}
+     \texttt{m}
+     \\ \texttt{λ n'.pred' -muWit (rec n')}
+   \end{array}
+    }
+\]
+\noindent where
+\[
+  \begin{array}{lcl}
+    \Gamma_P
+    & =
+    & \begin{array}{lcl}
+        \texttt{Type/rec} & : & ★
+        \\ \texttt{isType/rec} & : & \texttt{Is/Nat ·Type/rec}
+        \\ \texttt{rec} & : & \texttt{Πx:Type/rec. rec/Type}
+      \end{array}
+  \end{array}
+\]
+\noindent which is to say that μ introduces a fresh type \texttt{Type/rec}, a
+witness \texttt{isType/rec} that terms of this type can be further case
+analysed, and binds recursive function (inductive hypothesis) \texttt{rec} which
+can operate only on terms of the appropriate (recursive) type.
+
+\subsection{Well-formedness of μ- and μ'-expressions}
 
 \subsection{Auxiliary Definitions}
 \label{ssec:inductive-aux-defs}
