@@ -1,0 +1,177 @@
+module examples.
+
+data Bool: ★ =
+  | tt: Bool
+  | ff: Bool
+  .
+
+data Nat: ★ =
+  | zero: Nat
+  | succ: Nat ➔ Nat
+  .
+
+data Vec (A: ★): Nat ➔ ★ =
+  | vnil : Vec zero
+  | vcons: ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n)
+  .
+
+data List (A: ★): ★ =
+  | nil : List
+  | cons : A ➔ List ➔ List
+  .
+
+eq-nil-vnil : {nil ≃ vnil} = β.
+eq-cons-vcons : {cons ≃ vcons} = β.
+eq-tt-zero : {tt ≃ zero} = β.
+
+
+data Cast (A: ★) (B: A ➔ ★): ★ =
+  | intrCast : Π f: Π a: A. B a. (Π a: A. {f a ≃ a}) ➔ Cast
+  .
+
+cast-f : ∀ A: ★. ∀ B: A ➔ ★. Cast ·A ·B ➔ Π a: A. B a
+  = Λ A. Λ B. λ c. μ' c {| intrCast f eq ➔ λ a. φ (eq a) - (f a) {a}}.
+
+cast-eq : ∀ A: ★. ∀ B: A ➔ ★. Π c: Cast ·A ·B. {cast-f c ≃ λ x. x}
+  = Λ A. Λ B. λ c. μ' c @(λ x: Cast ·A ·B. {cast-f x ≃ λ x. x}) {| intrCast f eq ➔ β}.
+
+cast : ∀ A: ★. ∀ B: A ➔ ★. Cast ·A ·B ➾ Π a: A. B a
+  = Λ A. Λ B. Λ c. φ (cast-eq c) - (cast-f c) {λ x. x}.
+
+v2l' : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+  = Λ A. Λ n. λ v. μ rec. v {| vnil ➔ nil ·A | vcons -n x v ➔ cons x (rec -n v)}.
+
+v2l-reflection : ∀ A: ★. ∀ n: Nat. Π v: Vec ·A n. {v2l' v ≃ v}
+  = Λ A. Λ n. λ v. μ ih. v @(λ i: Nat. λ x: Vec ·A i. {v2l' x ≃ x}) {
+  | vnil ➔ β
+  | vcons -i x xs ➔
+    ρ (ih -i xs) @ xs' . { cons x xs' ≃ vcons x xs }
+  - β
+  }.
+
+v2l-cast : ∀ A: ★. ∀ n: Nat. Cast ·(Vec ·A n) ·(λ _: Vec ·A n. List ·A)
+  = Λ A. Λ n. intrCast (v2l' ·A -n) (v2l-reflection ·A -n).
+
+v2l : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+  = Λ A. Λ n. λ xs. φ (v2l-reflection -n xs) - (v2l' -n xs) {xs}.
+
+v2l! = ●.
+
+length : ∀ A: ★. List ·A ➔ Nat
+  = Λ A. λ xs. μ rec. xs {
+  | nil ➔ zero
+  | cons x xs ➔ succ (rec xs)
+  }.
+
+l2v : ∀ A: ★. Π xs: List ·A. Vec ·A (length xs)
+  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. Vec ·A (length x)) {
+  | nil ➔ vnil ·A
+  | cons x xs ➔ [ xs' = ih xs ] - vcons -(length (ih/cast xs)) x xs'
+  }.
+
+l2v-reflection : ∀ A: ★. Π xs: List ·A. {l2v xs ≃ xs}
+  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. {l2v x ≃ x}) {
+  | nil ➔ β
+  | cons x xs ➔
+    χ {vcons x (l2v xs) ≃ cons x xs}
+  - ρ (ih xs) - β
+  }.
+
+l2v-cast : ∀ A: ★. Cast ·(List ·A) ·(λ xs: List ·A. Vec ·A (length xs))
+  = Λ A. intrCast (l2v ·A) (l2v-reflection ·A).
+
+l2v' : ∀ A: ★. Π xs: List ·A. Vec ·A (length xs)
+  = Λ A. λ xs. φ (l2v-reflection xs) - (l2v xs) {xs}.
+
+v2l-len : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {n ≃ length (v2l xs)}
+  = Λ A. Λ n. λ xs. (μ ih. xs @(λ i: Nat. λ x: Vec ·A i. {i ≃ length (v2l x)}) {
+  | vnil ➔ β
+  | vcons -n' x xs ➔ ρ (ih -n' xs) - β
+  }).
+
+ite : ∀ X: ★. Bool ➔ X ➔ X ➔ X
+  = Λ X. λ b. λ t. λ e. μ' b {
+  | tt ➔ t
+  | ff ➔ e
+  }.
+
+add : Nat ➔ Nat ➔ Nat
+  = λ n. λ m. μ rec. n {
+  | zero ➔ m
+  | succ n' ➔ succ (rec n')
+  }.
+
+vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+  = Λ A. Λ m. Λ n. λ xs. λ ys. μ rec. xs @(λ i: Nat. λ x: Vec ·A i. Vec ·A (add i n)) {
+  | vnil ➔ ys
+  | vcons -i x xs' ➔ vcons -(add i n) x (rec -i xs')
+  }.
+
+append : ∀ A: ★. List ·A ➔ List ·A ➔ List ·A
+  = Λ A. λ xs. λ ys.
+    [ xs' = cast -(l2v-cast ·A) xs ] - [ m = length xs ]
+  - [ ys' = cast -(l2v-cast ·A) ys ] - [ n = length ys ]
+  - cast -(v2l-cast ·A -(add m n)) (vappend -m -n xs' ys').
+
+eq-append-vappend : {append ≃ vappend} = β.
+
+append' : ∀ A: ★. List ·A ➔ List ·A ➔ List ·A
+  = Λ A. λ xs. λ ys. μ rec. xs {
+  | nil ➔ ys
+  | cons x xs ➔ cons x (rec xs)
+  }.
+
+append'-len : ∀ A: ★. Π xs: List ·A. Π ys: List ·A. {add (length xs) (length ys) ≃ length (append' xs ys)}
+  = Λ A. λ xs. λ ys. μ ih. xs @(λ x: List ·A. {add (length x) (length ys) ≃ length (append' x ys)}) {
+  | nil ➔ β
+  | cons x xs ➔
+    χ {succ (add (length xs) (length ys)) ≃ succ (length (append' xs ys))}
+  - ρ (ih xs) - β
+  }.
+
+vappend' : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+  = Λ A. Λ m. Λ n. λ xs. λ ys.
+    [ xs' = v2l -m xs] - [ m-eq = v2l-len -m xs ]
+  - [ ys' = v2l -n ys] - [ n-eq = v2l-len -n ys ]
+  - ρ m-eq - ρ n-eq - ρ (append'-len (v2l -m xs) (v2l -n ys))
+  - cast -(l2v-cast ·A) (append' xs' ys').
+
+eq-append'-vappend' : {append' ≃ vappend'}
+  = β.
+
+iterate : ∀ R: ★. (R ➔ R) ➔ R ➔ Nat ➔ R
+  = Λ R. λ f. λ b. λ n. μ rec. n {
+  | zero ➔ b
+  | succ n ➔ f (rec n)
+  }.
+
+add-zero-r : Π m: Nat. {add m zero ≃ m}
+  = λ m. μ ih. m @(λ x: Nat. {add x zero ≃ x}) {
+  | zero ➔ β
+  | succ m ➔ χ {succ (add m zero) ≃ succ m} - ρ (ih m) - β
+  }.
+
+data PTree : ★ =
+  | leaf : PTree
+  | node : ((PTree ➔ Bool) ➔ PTree) ➔ PTree
+  .
+
+test-leaf-zero : {zero ≃ leaf} = β.
+test-leaf-succ : {node ≃ succ} = β.
+
+indPTree
+  : ∀ P: PTree ➔ ★. P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+    Π t: PTree. P t
+  = Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
+  | leaf ➔ base
+  | node s ➔
+    [ s1 : (PTree ➔ Bool) ➔ ih/type = λ p. s (λ t. p (ih/cast t)) ]
+  - [ s2 : (PTree ➔ Bool) ➔ PTree = λ p. ih/cast (s1 p) ]
+  - step -s2 (λ p. ih (s1 p))
+  }.
+
+neq-tt-ff : {tt ≃ ff} ➔ ∀ X: ★. X
+  = λ eq.
+    [ eq-contra : {ite tt (λ t. λ f. t) (λ t. λ f. f) ≃ ite ff (λ t. λ f. t) (λ t. λ f. f)}
+      = ρ eq - β ]
+  - δ - eq-contra.
