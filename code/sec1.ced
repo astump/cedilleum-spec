@@ -26,18 +26,18 @@ data Vec (A: ★): Nat ➔ ★ =
 
 -- Non-recursive
 ite : ∀ X: ★. Bool ➔ X ➔ X ➔ X
-  = Λ X. λ b. λ t. λ f. μ' b {tt ➔ t | ff ➔ f}.
+= Λ X. λ b. λ t. λ f. μ' b {tt ➔ t | ff ➔ f}.
 
 -- Recursive
 add : Nat ➔ Nat ➔ Nat
-  = λ m. λ n. μ addN. m {zero ➔ n | succ m ➔ succ (addN m)}.
+= λ m. λ n. μ addN. m {zero ➔ n | succ m ➔ succ (addN m)}.
 
 -- Recursive, parameterized, indexed
 vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
-  = Λ A. Λ m. Λ n. λ xs. λ ys. μ vappendYs. xs @(λ i: Nat. λ x: Vec ·A i. Vec ·A (add i n)) {
-  | vnil ➔ ys
-  | vcons -m x xs ➔ vcons -(add m n) x (vappendYs -m xs)
-  }.
+= Λ A. Λ m. Λ n. λ xs. λ ys. μ vappendYs. xs @(λ i: Nat. λ x: Vec ·A i. Vec ·A (add i n)) {
+| vnil ➔ ys
+| vcons -m x xs ➔ vcons -(add m n) x (vappendYs -m xs)
+}.
 
 -- Section 1.3: Course-of-Values Recursion
 -- --------------------------------------------------

@@ -14,6 +14,7 @@
 \usepackage{stmaryrd}
 
 \usepackage{soul}
+\usepackage{alltt}
 % \usepackage{unicode-math}
 
 \DeclareUnicodeCharacter{03BC}{\ensuremath{\mu}}
@@ -74,9 +75,12 @@
 \DeclareUnicodeCharacter{03C8}{\ensuremath{\lamLam}}   % maps ψ to \lamLam
 \newcommand{\reduce}{\ensuremath{\rightsquigarrow}}
 
+\newcommand{\difnd}{\ensuremath{di\!f\!f\ }}
+\newcommand{\les}{\texttt{\,<:\,}}
+
 \begin{document}
 
-\title{The Cedilleum Language Specification \\ \large Syntax, Typing, Reduction,
+\title{Cedille 1.1.0 Datatype System Specification \\ \large Syntax, Typing, Reduction,
   and Elaboration }
 
 \author{Christopher Jenkins}
@@ -85,630 +89,874 @@
 
 \section{Introduction}
 \label{sec:intro}
-This document describes \textit{Cedilleum}, a general-purpose dependently typed
-programming language with inductive datatypes. Unlike most languages of this
-description, the underlying theory of Cedilleum is \textit{not} the Calculus of
-Inductive Constructions (CIC)\cite{Pa15_Intro-CIC}. Instead, Cedilleum is
-designed so that it may easily be translated to \textit{Cedille Core} -- a
-compact core theory in which induction is derivable for lambda-encoded datatypes
--- while still providing high-level features like pattern-matching and recursive
-definitions. That said, the formal specification of Cedilleum as a
-self-contained language has a lot in common with CIC -- see in particular
-Section 8 of \cite{In18_Coq-Docs}, which served as the basic template for much
-of this document's formal development.
+This document describes the datatype subsystem of Cedille, to be introduced in
+version 1.1.0. Cedille is programming language with dependent types based on the
+\textit{Calculus of Dependent Lambda Eliminations}(CDLE)\cite{St17_CDLE} -- a
+compact and Curry-style pure type theory which extends the Calculus of
+Constructions (CC)\cite{CH86_CC} with additional typing constructs, and in which
+induction for datatypes can be \textit{generically
+  derived}\cite{FBS18_Efficient-Mendler} rather than taken as primitive. The
+datatype system described in this document provides users of Cedille convenient
+access to this generic development by providing high-level syntax for declaring
+datatypes and defining functions over them; Cedille can then elaborate these
+features to \textit{Cedille Core}\cite{St18_Cedille-Core}, a minimal
+implementation of CDLE.
 
-\subsection{Data-type Declarations}
-Before diving into the details, let us take a bird's-eye view of the language
-by showing some simple example data-type definitions and functions over them.
-
-\begin{figure}[h]
-\begin{verbatim}
--- Non-recursive
-data Bool: ★ =
-  | tt: Bool
-  | ff: Bool
-.
--- Recursive
-data Nat: ★ = 
-  | zero: Nat
-  | succ: Nat ➔ Nat
-.
--- Recursive, parameterized, indexed
-data Vec (A: ★): Nat ➔ ★ =
-  | vnil : Vec zero
-  | vcons: ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n)
-.
-\end{verbatim}
-  \caption{Definition of natural numbers and length-indexed lists}
-  \label{fig:ex-data-decl}
+\subsection{Background: CDLE}
+\begin{figure}
+  \begin{subfigure}{1\linewidth}
+    \caption{Novel CDLE type constructs}
+    \label{sfig:cdle-kinds}
+    \[\small
+      \begin{array}{ccc}
+        \infer{
+         \Gamma\vdash \{ t \simeq t'\} : \star
+        }{
+         \textit{FV}(|t|\ |t'|)\subseteq \textit{dom}(\Gamma)
+        }
+        & \infer{
+           \Gamma\vdash\abs{\iota}{x}{T}{T'} : \star
+          }{
+           \Gamma \vdash T : \star \quad \Gamma,x:T\vdash T' : \star
+          }
+        & \infer{
+           \Gamma\vdash\abs{\forall}{x}{T}{T'} : \star
+          }{
+           \Gamma \vdash T : \star
+          \quad \Gamma,x:T\vdash T' : \star
+          }
+      \end{array}
+    \]
+  \end{subfigure}
+  \begin{subfigure}{1\linewidth}
+    \caption{Equality}
+    \label{sfig:cdle-eq}
+    \[\small
+      \begin{array}{cr}
+      \begin{array}{cc}
+        \infer{
+         \Gamma \vdash \beta : \{t ≃ t\}
+        }{
+         \Gamma \vdash \{t \simeq t\} : \star
+        }
+        &
+          \infer{
+           \Gamma\vdash \rho\ t\ @\ x.T\ \mhyph\ t' : [t_1/x]T
+          }{
+           \Gamma \vdash t : \{ t_1 \simeq t_2 \}
+          \quad \Gamma\vdash t' : [t_2/x]T
+          }
+        \\ \\
+          \infer{
+           \Gamma \vdash \varphi\ t -\ t_1\ \{t_2\} : T
+          }{
+           \Gamma \vdash t : \{t_1 ≃ t_2 \}
+          \quad \Gamma \vdash t_1 : T
+          }
+        & \infer{
+         \Gamma\vdash \delta\ T - t : T
+        }{
+         \Gamma\vdash t : \{ \absu{\lambda}{x}{\absu{\lambda}{y}{x}} \simeq
+          \absu{\lambda}{x}{\absu{\lambda}{y}{y}}\}
+          \quad \Gamma \vdash T : \star
+        } 
+      \end{array}
+        &
+          \begin{array}{lll}
+            |\beta| & = & \absu{\lambda}{x}{x}
+            \\ |\rho\ t\ @\ x.T - t'| & = & |t'|
+            \\ |\varphi\ t - t_1\ \{t_2\}| & = & |t_2|
+            \\ |\delta\ T - t| & = & |t|
+          \end{array}
+      \end{array}
+    \]
+  \end{subfigure}
+  \begin{subfigure}{1\linewidth}
+    \caption{Dependent Intersection}
+    \label{sfig:cdle-depint}
+    \[\small
+      \begin{array}{cr}
+        \begin{array}{c}
+          \infer{
+          \Gamma\vdash [t_1,t_2] : \abs{\iota}{x}{T_1}{T_2}
+          }{
+          \Gamma\vdash t_1 : T_1
+          \quad \Gamma\vdash t_2 : [t_1/x]T_2
+          \quad \Gamma \vdash \abs{\iota}{x}{T_1}{T_2} : \star
+          \quad |t_1| = |t_2|
+          }
+          \\ \\
+          \begin{array}{cc}
+            \infer{
+             \Gamma\vdash t.1 : T_1
+            }{
+             \Gamma\vdash t : \abs{\iota}{x}{T_1}{T_2}
+            }
+            &
+            \infer{
+             \Gamma\vdash t.2 : [t.1/x]T_2
+            }{
+             \Gamma\vdash t : \abs{\iota}{x}{T_1}{T_2}
+            }
+          \end{array}
+        \end{array}
+        &
+          \begin{array}{lll}
+            |[ t , t' ]| & = & |t|
+            \\ |t.1| & = & |t|
+            \\ |t.2| & = & |t|
+          \end{array}
+      \end{array}
+    \]
+  \end{subfigure}
+  \begin{subfigure}{1\linewidth}
+    \caption{Implicit Products}
+    \label{sfig:clde-imp}
+    \[\small
+      \begin{array}{cr}
+        \begin{array}{cc}
+          \infer{
+          \Gamma\vdash\abs{\Lambda}{x}{T}{t'} : \abs{\forall}{x}{T}{T'}
+          }{
+          \Gamma,x:T\vdash t':T'
+          \quad x\not\in\textit{FV}(|t'|)
+          \quad \Gamma \vdash \abs{\forall}{x}{T}{T'} : \star
+          }
+          &
+            \infer{
+            \Gamma\vdash t\ \mhyph t' : [t'/x]T
+            }{
+            \Gamma\vdash t : \abs{\forall}{x}{T'}{T}
+            \quad \Gamma\vdash t' : T'
+            }
+        \end{array}
+        & 
+          \begin{array}{lll}
+            |\abs{\Lambda}{x}{T}{t}| & = & |t|
+            \\ |t\ \mhyph t'| & = & |t|
+          \end{array}
+      \end{array}
+    \]
+  \end{subfigure}
+  \caption{Kinding, typing, and erasure for a fragment of CDLE}
+  \label{fig:cdle-type-constructs}
 \end{figure}
-Figure \ref{fig:ex-data-decl} shows some definitions of inductive datatypes, and
-modulo differences in syntax should seem straightforward to programmers used
-to languages like Agda, Idris, or Coq. Some key differences are:
+We first review CDLE, the type theory of Cedille; a more complete treatment can
+be found in \cite{St18_Cedille-Syntax-Semantics}. CDLE is an extension of the
+impredicative, Curry-style (i.e. extrinsically typed) Calculus of Constructions
+(CC) that adds three new typing constructs: equality of untyped terms ($\{t ≃
+t'\}$); the dependent intersection type ($\abs{ι}{x}{T}{T'}$) of
+\cite{Ko03_Dependent-Intersection}; and the implicit (erased) product type
+($\abs{∀}{x}{T}{T'}$) of \cite{Mi01_ICC}. The pure term language of CDLE is just
+that of the untyped $\lambda$-calculus; to make type checking algorithmic,
+terms in Cedille are given type annotations, and definitional equality of
+terms is modulo erasure of these annotations. The kinding, typing, and erasure
+rules for the fragment of CLDE containing these type constructs are given in
+Figure \ref{fig:cdle-type-constructs}. We briefly describe these below:
 
 \begin{itemize}
-\item In constructor type signatures, recursive occurrences of the inductive
-  data-type being defined (such as in \texttt{suc : \underline{Nat} ➔ Nat}) must
-  be positive, \textit{but not strictly positive}.
-\item In parameterized types (like \texttt{Vec} with parameter \texttt{(A: ★)})
-  occurrences of the inductive type being defined are not written applied to
-  its parameters.
+\item $\{t_1 \simeq t_2\}$ is the type of proofs that $t_1$ and $t_2$ are equal
+  (modulo erasure). It is introduced with $\beta$ (erasing to
+  $\absu{\lambda}{x}{x}$), proving $\{t \simeq t\}$ for any untyped term $t$.
+  Combined with definitional equality, $\beta$ can be used to prove $\{t_1 ≃
+  t_2\}$ for any $\beta\eta$-convertible $t_1$ and $t_2$ whose
+  free variables are declared in the typing context. Equality types can be
+  eliminated with $\rho$, $\varphi$, and $\delta$.
+  \begin{itemize}
+  \item[●] $\rho\ t\ @\ x.T - t'$ (erasing to $|t'|$) rewrites a type
+    by an equality: if $t$ proves that $\{t_1 \simeq t_2\}$ and $t'$ has type
+    $[t_2/x]T$, then the ρ expression has type $[t_1/x]T$, with the guide $@\
+    x.T$ indicating the occurrences of $t_2$ rewritten in the type of
+    $t'$.
+  \item[●] $\varphi\ t - t_1\ \{t_2\}$ (erasing to $|t_2|$) casts $t_2$ to the
+    type of $t_1$  when $t$ proves $t_1$ and $t_2$ equal. 
+  \item[●] $\delta\ T\ - t$ (erasing to $|t|$) has type $T$ when $t$ proves that
+    Church-encoded \textit{true} equals \textit{false}, enabling a form of proof
+    by contradiction. While this is adequate for CDLE, Cedille makes δ more
+    practical by implementing the B{\"o}hm-out
+    algorithm\cite{Bo68_Bohm-Out} so δ can be used on any proof that $\{t_1 ≃
+    t_2\}$ for closed, normalizing, and $\beta\eta$-inconvertible terms $t_1$ and $t_2$.
+  \end{itemize}
+\item $\abs{\iota}{x}{T}{T'}$ is the type of terms $t$ which can be assigned
+  both type $T$ and $[t/x]T'$, and in the annotated language is introduced by
+$[t , t']$, where $t$ has type $T$, $t'$ has type $[t/x]T'$, and $|t|
+\simeq_{\beta\eta} |t'|$. Dependent intersections are eliminated with
+projections $t.1$ and $t.2$, selecting resp. the view that term $t$ has type $T$
+or $[t.1/x]T'$
   
-  For example, the constructor declaration \texttt{vnil : Vec zero} results in
-  the term \texttt{vnil} having type \\ \texttt{∀ A: ★. Vec ·A zero} (with \texttt{·}
-  denoting type application)
-\item In the constructor declaration \texttt{vcons : ∀ n: Nat. A ➔ Vec n ➔ Vec
-    (succ n)}, the argument \texttt{n} is \textit{computationally irrelevant}
-  (or \textit{erased}). This is because it is introduced by the
-  irrelevant dependent function former \texttt{∀}, as opposed to the relevant
-  function former \texttt{Π}. More will be said of this when we discuss the type
-  system of Cedilleum, but for now it suffices to say that implicit
-  quantification comes from the \textit{Implicit Calculus of
-    Constructions}\cite{Mi01_ICC}.
+\item $\abs{\forall}{x}{T}{T'}$ is the implicit product type, the type of
+  functions with an erased argument $x$ of type $T$ 
+  and a result of type $T'$. Implicit products are introduced with
+  $\abs{\Lambda}{x}{T}{t}$, provided $x$ does not occur in $|t|$, and are
+  eliminated with erased application $t\ \mhyph t$. Due to the restriction that
+  bound variable $x$ cannot occur in the body $t$ of $\abs{\Lambda}{x}{T}{t}$,
+  erased arguments play no computational role and thus exist solely for the
+  purposes of typing.
+\end{itemize}
+
+Figure \ref{fig:cdle-type-constructs} omits the typing and erasure rules for the
+more familiar term and type constructs of CC. When reasoning about definitional
+equality of term constructs in CC, all types in type annotations,
+quantifications, and applications are erased. Types are quantified over with ∀
+within types and abstracted over with Λ in terms, similar to implicit products;
+the application of a term $t$ to type $T$ is written $t ·T$, and similarly
+application of type $S$ to type $T$ is written $S ·T$. In term-to-term
+applications, we omit type arguments when these are inferable from the types of
+term arguments.
+
+% The formal specification of Cedille's datatype system as a self-contained
+% language feature has a lot in common with CIC -- see in particular Section 8 of
+% \cite{In18_Coq-Docs}, which served as the basic template for much of this
+% document's formal development.
+
+\subsection{Datatype Declarations}
+We begin with a bird's-eye view of the new language features by showing some simple example
+data-type definitions and functions over them.
+
+\label{ssec:cedille-standard}
+\begin{figure}[h]
+  \begin{subfigure}{0.35\linewidth}
+\begin{alltt}
+data Bool: ★ =
+| tt: Bool
+| ff: Bool.
+
+data Nat: ★ =
+| zero: Nat
+| suc: Nat ➔ Nat.
+\end{alltt}
+  \end{subfigure}%
+  \begin{subfigure}{0.4\linewidth}
+\begin{alltt}
+data List (A: ★): ★ =
+| nil: List
+| cons: A ➔ List ➔ List.
+
+data Vec (A: ★): Nat ➔ ★ =
+| vnil: Vec zero
+| vcons: ∀ n: Nat. A ➔ Vec n ➔ Vec (suc n).
+\end{alltt}
+  \end{subfigure}
+  \caption{Example datatype declarations}
+  \label{fig:cedille-data-standard}
+\end{figure}%
+\paragraph{\textbf{Declarations}}
+Figure \ref{fig:cedille-data-standard} shows the definitions in Cedille for some
+well-known types. Modulo differences in syntax, the general scheme for declaring
+datatypes in Cedille should be straightforward to anyone familiar with
+GADTs in Haskell or with dependently typed languages like Agda, Coq, or
+Idris. Some differences from these languages to note are that:
+% some... standard?
+\begin{itemize}
+\item In constructor types, recursive occurrences of the inductive
+  datatype (such as \texttt{\underline{Nat}} in \(\texttt{suc}:
+  \texttt{\underline{Nat}} ➔ \texttt{Nat}\) % texttt{suc :
+    % \underline{Nat} ➔ Nat})
+  must be positive, but \textit{need not be} strictly
+  positive.
+\item Occurrences of the inductive type being defined are not written applied to
+  its parameters. E.g, the constructor \texttt{nil} is written with signature
+  \texttt{List} rather than \(\texttt{List} ·A\). Used
+  outside of the datatype declaration,
+  \texttt{nil} has its usual type: \(\abs{∀}{A}{★}{\texttt{List} ·A}\).
+\item Declarations can only refer to the datatype itself and prior
+  definitions. Inductive-recursive and inductive-inductive definitions are not
+  part of this proposal.
 \end{itemize}
 
 \subsection{Function Definitions}
 \begin{figure}[h]
-\begin{verbatim}
--- Non-recursive
-ite : ∀ X: ★. Bool ➔ X ➔ X ➔ X
-  = Λ X. λ b. λ then. λ else. μ' b {
-      | tt ➔ then
-      | ff ➔ else
-      }.
--- Recursive
-add : Nat ➔ Nat ➔ Nat
-  = λ n. λ m.
-      μ rec. n @(λ x: Nat. Nat) {
-      | zero   ➔ m
-      | succ p ➔ succ (rec p)
-      }.
-\end{verbatim}
-  \caption{Functions over inductive datatypes}
-  \label{fig:ex-data-fun}
+\begin{alltt}
+pred: Nat ➔ Nat
+= λ n. μ' n \{    -- scrutinee: n
+  | zero ➔ n    -- case: n is zero
+  | suc n' ➔ n' -- case: n is successor to some n'
+  \}.
+
+add: Nat ➔ Nat ➔ Nat
+= λ m. λ n. μ addN. m \{    -- scrutinee: m, recursive definition: addN
+  | zero ➔ n               -- case: m is zero
+  | suc m' ➔ suc (addN m') -- case: m is successor to some m'
+  \}.
+
+vappend: ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+= Λ A. Λ m. Λ n. λ xs. λ ys. -- explicit motive given below with @
+  μ vappendYs. xs @(λ i: Nat. λ x: Vec ·A i. Vec ·A (add i m)) \{
+  | vnil ➔             -- expected: Vec ·A n
+    ys
+  | vcons -m' hd xs' ➔ -- expected: Vec ·A (suc (add m' n))
+    vcons -(add m' n) hd (vappendYs -m' xs')
+  \}.
+\end{alltt}
+  \caption{Predecessor, addition, and vector append}
+  \label{fig:cedille-standard}
 \end{figure}
 
-Figure \ref{fig:ex-data-fun} shows functions defined over inductive datatypes
-using pattern matching and recursion. The first difference to note between the
-definitions is that \texttt{ite} performs ``mere''
-pattern matching on its argument by using \texttt{μ'}, whereas \texttt{add}
-uses \texttt{μ} which provides combined pattern-matching and fix-point
-recursion. In \texttt{add}, \texttt{μ} binds \texttt{rec} as the name of the
-fixpoint function for recursion on \texttt{n}. From this alone the reader might
-expect that \texttt{μ'} is merely syntactic sugar for the more verbose
-\texttt{μ} but without recursion. Actually the difference is a bit more subtle
-that this, as we will see below in Section \ref{sec:hist-rec}
+Figure \ref{fig:cedille-standard} shows a few standard examples of functional
+and dependently-typed programming in Cedille. Function \texttt{pred} introduces
+operator μ' for \textit{course-of-values (CoV) pattern matching}, which will be
+explained in greater detail below. Here it is used for standard pattern
+matching: μ' is given scrutinee \texttt{n} of type \texttt{Nat} and a sequence
+of case branches for each constructor of \texttt{Nat}. Functions \texttt{add}
+and \texttt{vappend} introduce operator μ for \textit{CoV induction} by combined
+pattern matching and recursion; the distinction between pattern matching by μ
+and μ' will also be made clear below. Here, μ is used for standard structurally
+recursive definitions, with \texttt{vappend} showing its use on indexed type
+\texttt{Vec} to define recursive function \texttt{vappendYs}, semantically
+appending $ys$ to its argument. In the \texttt{vnil} branch, the expected type
+is \(\texttt{Vec} ·A\ (\texttt{add}\ \texttt{zero}\ n)\) by the usual index
+refinement of pattern matching on indexed types; thanks to the reduction
+behavior of \texttt{add} this is convertible with \(\texttt{Vec} ·A\ n\), the
+type of \texttt{ys}. Similarly, in the \texttt{vcons} branch the expected type
+is \(\texttt{Vec} ·A\ (\texttt{add}\ (\texttt{suc}\ m')\ n)\), convertible with
+the type \(\texttt{Vec} ·A\ (\texttt{suc}\ (\texttt{add}\ m'\ n))\) of the body.
 
-The first major departure of Cedilleum from other languages with inductive
-datatypes can be seen in the type of \texttt{rec}. The type that the reader
-might expect it to have is \verb;Π x: Nat. Nat; (corresponding to the motive
-\verb;(λ x: Nat. Nat);), but in Cedilleum, its type is \verb;rec/type ➔ Nat;
-(where we read \texttt{rec/type} as a single identifier) and by extension for
-the expression \texttt{rec p} to be well-typed, the variable \texttt{p} bound in
-the pattern \texttt{succ p} must have type \texttt{rec/type}. The name
-\texttt{rec/type} is locally bound in the body of the μ-expression (delimited
-by curly braces \texttt{\{...\}}) and is
-automatically generated by Cedilleum by using the name of the recursive
-function bound by μ (here \texttt{rec}).
+\subsection{Reduction Rules of μ and μ'}
+In the discussion of \texttt{vappend} above we omitted some details about
+checking convertibility of terms defined using μ and μ'. In the \texttt{vcons}
+case, the expected type \(\texttt{Vec} ·A\ (\texttt{add}\ (\texttt{suc}\ m')\
+n)\) reduces, by β-reduction and erasure alone, to
+\begin{alltt}
+Vec ·A (μ addN. (suc m') \{zero ➔ n | suc m' ➔ suc (addN m')\})
+\end{alltt}
 
-Why introduced this new type for the predecessor and, in general, for the
-recursive occurrences of the data-type in constructor sub-data? The answer is: for
-\textit{termination checking}. Typically, languages that support
-pattern-matching and fixpoint-style recursion for inductive data-types require
-all recursive calls be made on ``obviously smaller'' arguments. In Cedilleum,
-the syntactic check is replaced by type-checking, and types like
-\texttt{rec/type} encode the fact that some data is indeed ``obviously smaller''
-than the previous invocation and thus legal to recurse on. These
-``recursive-occurence'' types appear in the types of sub-data (such as
-\texttt{p} in the example) in the constructor patterns of the case branches
-introduced by μ (but not necessarily μ'), replacing all occurrences of the
-inductive type itself.
-% \footnotetext{More precisely, the type of every
-% variable bound by a constructor pattern of a case branch introduced by
-% \texttt{μ} has all occurences of $\texttt{I}\ \vars{P}$ replaced by
-% \texttt{I/fixpoint-name}, where $\vars{P}$ are the parameters.}
-
-% The type \texttt{Nat/add-rec} (and any such type generated by use of
-% \texttt{μ}) comes with some restrictions, which will be made more precise
-% further on in the document. Informally, such terms cannot themselves be given to
-% \texttt{μ} directly as in `\verb;μ add-rec2. r; ...' and despite the deceptive
-% case label `\verb;| suc r ↦ ;...' \texttt{r} cannot be given directly to
-% constructor \texttt{succ}, as \texttt{Nat} and \texttt{Nat/add-rec} are distinct
-% types. However, even so these two types \textit{are} related to each other, most
-% notably in the way they are treated by \texttt{μ'} -- terms of type \texttt{Nat}
-% and \texttt{Nat/add-rec} alike support mere pattern matching through \texttt{μ'}.
-
-\begin{figure}[h]
-\begin{verbatim}
--- Recursive, parameterized, indexed
-vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
-  = Λ A. Λ m. Λ n. λ xs. λ ys.
-      μ rec. xs @(λ i: Nat. λ zs: Vec ·A i. Vec ·A (add i n)) {
-      | vnil            ➔ ys
-      | vcons -m' x xs' ➔ [ zs = rec -m' xs' ] - vcons -(add m' n) x zs
-      }.
-\end{verbatim}
-  \caption{Dependent functions over inductive datatypes}
-  \label{fig:ex-data-dep}
-\end{figure}
-
-Figure \ref{fig:ex-data-dep} shows the classic dependent function
-\texttt{vappend} over \texttt{Vec}, the type of length-indexed lists. Like
-\texttt{add}, it is defined by fixpoint recursion, here over the argument
-\texttt{xs}. Here the fixpoint function \texttt{rec} has type
-\texttt{∀ i: Nat. Π zs: rec/type i. Vec ·A (add i n)}, where the
-recursive-occurence type has kind \texttt{Nat ➔ ★}. Note again the missing parameter
-\texttt{A} in the type \texttt{rec/type i} -- this is not a typo, but rather an
-indication that \texttt{A} is ``baked-in'' to the type \texttt{rec/type}. Aside
-from this the two cases of \texttt{vappend} are mostly straightforward: in the
-\texttt{vnil} branch the expected type is \verb;Vec ·A (add zero n); which
-converts to \verb;Vec ·A n;, so \texttt{ys} suffices; in the \texttt{vcons}
-branch we bind subdata \verb;m': Nat;, \verb;x: A;, and \verb;xs': rec/type m';,
-with \verb;-m'; indicating that \verb;m'; is bound \textit{irrelevantly}, then
-we make a local biding \texttt{zs} by invoking recursive function \texttt{rec} on
-\texttt{m'} and \texttt{xs'} (where here \texttt{-m'} indicates \texttt{m'}
-is an irrelevant \textit{argument} to \texttt{rec}) before producing a result
-whose type is convertible with the expected \verb;Vec ·A (add (suc m') n);.
+For the length index of this type to be convertible with \(\texttt{suc}\
+(\texttt{add}\ m'\ n)\), we need a rule for μ-reduction. μ-reduction is a
+combination of fixpoint unrolling and case branch selection. Here, because the
+scrutinee is \(\texttt{suc}\ m'\), the case branch selected is the successor
+case. The recursive call \(addN\ m'\) that occurs in this branch is replaced (by
+substitution on the μ-bound \(addN\)) with another copy of the μ-expression that
+defines \texttt{add}. Therefore, the fully normalized type in the \texttt{vcons}
+case of \texttt{vappened} is
+\begin{alltt}
+Vec ·A (suc (μ addN. m' \{zero ➔ n | suc m' ➔ suc (addN m')\}))
+\end{alltt}
+\noindent which is convertible with the type of the expression given in that branch.
 
 \subsection{Course-of-Value Recursion}
 \label{sec:intro-cov}
 
-By supporting type-guided termination checking, Cedilleum enables a form of
-reasoning more powerful than what is available with a simple
-syntax-based termination checker: ``course-of-value'' recursion (and induction),
-allowing the programmer to recurse on arbitrarily deeply-nested sub-data in a
-provably terminating way. A compelling example of this can be seen when trying
-to implement division of natural numbers through iterated subtraction. In a
-language like Haskell, one may simply write:
-\begin{verbatim}
--- Haskell snippet
-(/) 0 d = 0
+This section explains \textit{(CoV) pattern matching} in Cedille, which is used
+to implement \textit{semantic} (type-based) termination checking and which
+facilitates reuse for functions used in ordinary and CoV induction.
+
+The definitions of \texttt{add} and \texttt{vappend} in Figure
+\ref{fig:cedille-standard} only require \textit{structural} recursion --
+recursive calls are made directly on subdata revealed by one level of pattern
+matching. Cedille's datatype system allows programmers to use the much more
+powerful form of course-of-values recursion, which allows recursive calls to be
+made on arbitrary subdata of a scrutinee. CoV recursion subsumes recursion
+subdata produced by a static number of cases analyzed, such as in the case of
+\texttt{fib} below:
+{
+\begin{alltt}
+fib: Nat ➔ Nat
+= λ n. μ fib. n \{
+  | zero ➔ suc zero
+  | suc n' ➔ μ' n'. \{| zero ➔ suc zero | suc n' ➔ add (fib n') (fib n'')\}
+ \}.
+\end{alltt}
+}
+CoV recursion allows the programmer to recurse on subdata computed
+\textit{dynamically}, as well as statically. A good intuitive example is the
+definition of division by iterated subtraction. In a Haskell-like language, we
+may simply write:
+{
+\begin{alltt}
+0 / d = 0
 n / 0 = n
-n / d = 1 + ((n - d) / d)
-\end{verbatim}
-This definition of division is terminating for all input; however, syntactic
-termination checkers will usually have a hard time seeing that the argument
-\texttt{n - d} of the recursive call to \texttt{divide} is legal, as it is in
-general hard to determine whether some arbitrary function produces a
-structurally smaller result than one of its inputs. Intuitively, we understand
-that subtracting \texttt{d} from \texttt{n} never produces a number larger than
-\texttt{n}, and one advantage that Cedilleum's type-guided termination checking
-has is that it allows us use this intuition to define a version of division in
-Figure \ref{fig:ex-data-div} very similar to the one above and which is
-``obviously'' terminating.
+n / d = if (n < d) then zero else 1 + ((n - d) / d)
+\end{alltt}
+}
+This definition is guaranteed to terminate for all inputs, as the first argument
+to the recursive call, $n\ \mhyph\ d$, is smaller than the original argument $n$
+($d$ is guaranteed to be non-zero). In Cedille, we are able to write a version
+of division close to the intuitive way, requiring a few more typing annotations
+to enable the termination checker to see that the expression \(n \mhyph d\) is
+some subdata of $n$.
 
-\label{sec:hist-rec}
-\begin{figure}[h]
-\begin{verbatim}
-pred' : ∀ R: ★. Nat/Mu ·R ➾ R ➔ R
-  = Λ R. Λ muWit. λ r. μ'<muWit> r {| zero ➔ r | succ p ➔ p}.
+\begin{figure}[h!]
+\begin{alltt}
+predCV: ∀ N: ★. ∀ is: Is/Nat ·N. N ➔ N
+= Λ N. Λ is. λ n. μ'<is> n \{| zero ➔ n | suc n' ➔ n'\}.
 
-pred : Nat ➔ Nat = pred' -Nat/mu .
+minusCV: ∀ N: ★. ∀ is: Is/Nat ·N. N ➔ Nat ➔ N
+= Λ N. Λ is. λ m. λ n. μ mMinus. n \{
+  | zero ➔ m
+  | suc n' ➔ predCV -is (mMinus n')
+  \}.
+minus = minusCV -is/Nat.
 
-minus' : ∀ R: ★. Nat/Mu ·R ➾ R ➔ Nat ➔ R
-  = Λ R. Λ muWit. λ m. λ n. μ rec. n @(λ _: Nat. R) {
-  | zero   ➔ m
-  | succ n' ➔ pred' -muWit (rec n')
-  }.
+lt: Nat ➔ Nat ➔ Bool
+= λ m. λ n. μ' (minus (suc m) n) \{| zero ➔ tt | suc r ➔ ff \}.
 
-minus : Nat ➔ Nat ➔ Nat = minus' -Nat/Rec .
+ite: ∀ X: ★. Bool ➔ X ➔ X ➔ X
+= Λ X. λ b. λ t. λ f. μ' b \{| tt ➔ t | ff ➔ f\}.
 
-lt : Nat ➔ Nat ➔ Bool
-  = λ m. λ n. μ' (minus m n) {
-  | zero   ➔ ff
-  | succ _ ➔ tt
-  }.
-
-divide : Nat ➔ Nat ➔ Nat
-  = λ n. λ d. μ rec. n @(λ _: Nat. Nat) {
-  | zero   ➔ zero
-  | succ n' ➔ succ (rec (minus' -rec/mu n' (pred d)))
-  }.
-\end{verbatim}
-  \caption{Course-of-value recursion and division}
-  \label{fig:ex-data-div}
+divide: Nat ➔ Nat ➔ Nat
+= λ n. λ d. μ divD. n \{
+  | zero ➔ zero
+  | suc pn ➔
+    [pn' = to/Nat -isType/divD pn] -
+    [diff = minusCV -isType/divD pn (pred d)] -
+      ite (lt (suc pn') d) zero (suc (divD diff))
+  \}.
+\end{alltt}
+  \caption{Division using course-of-values recursion}
+  \label{fig:cov-divide}
 \end{figure}
 
-Our first function, \texttt{pred'}, is crucial for defining \texttt{divide} further
-below. The type \texttt{Nat/Mu ·R} in its type signature is the type of
-\textit{witnesses} that terms of type \texttt{R} can be pattern-matched (using μ')
-as if they had type \texttt{Nat}; in the definition of \texttt{pred'}, this witness
-is given name \texttt{muWit}. All such witnesses are introduced in only one of
-two ways: once \textit{globally} for each defined data-type (like \texttt{Nat}
-itself -- in the definition of \texttt{pred} the term \texttt{Nat/mu} has type
-\texttt{Nat/Mu ·Nat}); and \textit{locally} for each recursive-occurence type
-introduce by μ (in the body of \texttt{divide}, term \texttt{rec/mu} has type
-\texttt{Nat/Mu ·rec/type}). In the definition of \texttt{pred'}, the notation
-\texttt{μ'<muWit>} indicates that the witness \texttt{muWit} is given explicitly
-to enable (mere) pattern-matching on argument \texttt{r}. After this, the
-definition of \texttt{pred} is easy -- it is an instance of \texttt{pred'} where
-\texttt{R} is specialized to \texttt{Nat} itself with evidence \texttt{Nat/mu}.
+\paragraph{\textbf{CoV Globals}}
+We first explain the types and definitions of \texttt{predCV} and
+\texttt{minsuCV}. In \texttt{predCV} we see the first use of predicate
+\texttt{Is/Nat}. Every datatype declaration in Cedille introduces, in addition
+to itself and its constructors, three global names derived from the datatype's
+name. For \texttt{Nat}, these are:
 
-Next we define \texttt{minus'}. One intuition for the type signature \texttt{∀
-  R: ★. Nat/Mu ·R ➾ R ➔ Nat ➔ R} of
-\texttt{minus'} is that it says ``this function never returns a number larger
-than it's \texttt{R} argument.'' That is to say, to
-return a term of type \texttt{R}, \texttt{minus'} can only return its \texttt{R}
-argument directly or some sub-data produced by pattern-matching on it. In
-\texttt{pred'} pattern-matching (via μ') is done only once; in \texttt{minus'} it is done \texttt{n}
-times by recursion on subtrahend \texttt{n} by invoking \texttt{pred'} each time.
+\begin{itemize}
+\item \(\texttt{Is/Nat}: ★ ➔ ★\)
 
-Finally, we turn to the definition of \texttt{divide} itself. At a high level,
-we recurse on dividend \texttt{n}, and in the \texttt{zero} case simply return
-\texttt{zero}. In the successor case, we subtract the (predecessor of) the
-divisor from the (predecessor of) the dividend, call \texttt{rec} on the result,
-and then add one with \texttt{succ}. We must use \texttt{minus'} to perform
-subtraction so that the call to \texttt{rec} is well-typed; note how this 
-prevents the user from writing \texttt{rec (minus (succ n') d)}, which if
-typeable would diverge when the divisor \texttt{d} is \texttt{zero}.
+  A term of type \(\texttt{Is/Nat} ·N\) is a witness that any term of type
+  \(N\) may be treated as if has type \texttt{Nat} for the purposes of
+  case analysis.
+
+\item \(\texttt{is/Nat} : \texttt{Is/Nat} · \texttt{Nat}\) is the trivial
+\texttt{Is/Nat} witness.
+\item \(\texttt{to/Nat}: \abs{∀}{N}{★}{\abs{∀}{is}{\texttt{Is/Nat} ·N}{N ➔
+      \texttt{Nat}}}\)
+
+  \texttt{to/Nat} is a function that coerces a term of type $N$ to
+  \texttt{Nat}, given a witness $is$ that $N$ ``is'' \texttt{Nat}. We will later
+  see that \texttt{to/Nat} and all other such cast functions
+  elaborate to terms definitionally equal (modulo erasure) to $\absu{λ}{x}{x}$.
+  Cedille internalizes this fact: equation
+  \(\{\texttt{to/Nat} ≃ \absu{λ}{x}{x}\}\) is true definitionally in the surface
+  language. Notice that
+  this is possible in part because there is only one \textit{unerased} argument
+  to \texttt{to/Nat}. This property is important for CoV induction further on.
+\end{itemize}
+
+In \texttt{predCV} the witness $is$ of type \(\texttt{Is/Nat} ·N\) is given
+explicitly to μ' with the notation \(μ'\texttt{<}is\texttt{>}\), allowing
+argument $n$ (of type $N$) to be a legal scrutinee for \texttt{Nat} pattern
+matching. Reasoning by parametricity, the only ways \texttt{predCV} can produce
+an $N$ output (i.e, preserve the abstract type) are by returning
+$n$ itself or some subdata produced by CoV pattern matching on it -- the
+predecessor $n'$ also has type $N$. Thus, the type signature of \texttt{predCV}
+has the following intuitive reading: it produces a number no larger than its
+argument, as an expression like \(\texttt{suc}\ (\texttt{to/Nat}\ \mhyph is\
+n)\) would be type-incorrect to return.
+
+\paragraph{\textbf{Code Reuse}}
+What is the relation is between \texttt{predCV}
+and the earlier \texttt{pred} of Figure \ref{fig:cedille-standard}? The fully
+annotated \texttt{μ'}-expression of the latter is:
+{
+\begin{alltt}
+μ'<is/Nat> n @(λ x: Nat. Nat) \{| zero ➔ n | suc n' ➔ n'\}
+\end{alltt}
+}
+\noindent In \texttt{pred}, the global witness \texttt{is/Nat} of type
+\(\texttt{Is/Nat} ·\texttt{Nat}\) need not be passed explicitly, as it is
+inferable\footnote{The same holds for the inferability of the local witness
+(discussed below) introduced in the body of \texttt{fib}.} by the type
+\texttt{Nat} of the scrutinee $n$. Furthermore, the erasures of \texttt{pred}
+and \texttt{predCV} are definitionally equal, a fact provable in Cedille (where
+\_ indicates an anonymous proof):
+{
+\begin{alltt}
+_ : \{pred ≃ predCV\} = β.
+\end{alltt}
+}
+
+This leads to a style of programming where, when possible, functions are defined
+over an abstract type $N$ for which e.g. \(\texttt{Is/Nat} ·N\) holds, and the
+usual version of the functions \textit{reuse} these as a special case. Indeed, this is how
+\texttt{minus} is defined -- in terms of the more general \texttt{minsuCV} specialized
+to the trivial witness \texttt{is/Nat}. The type signature of \texttt{minsuCV}
+yields a similar reading that it produces a result no
+larger than its first argument. In the successor case, \texttt{predCV} is invoked
+and given the (erased) witness \texttt{is}. That \texttt{minsuCV} preserves the
+type of its argument after \texttt{n} uses of \texttt{predCV} is precisely what
+allows it to appear in expressions given as arguments to recursive functions.
+Function \texttt{minus} is used to define \texttt{lt}, the Boolean predicate
+deciding whether its first argument is less than its second; \texttt{ite} is the
+usual definition of a conditional expression by case analysis on \texttt{Bool}.
+
+\paragraph{\textbf{CoV Locals}}
+The last definition, \texttt{divide}, is as expected except for the successor
+case. Here, we make a let binding (the syntax for which in Cedille is \([x = t]
+- t'\), analogous to \(\texttt{let}\ x = t\ \texttt{in}\ t'\)) for $pn'$, the
+coercion to \texttt{Nat} of the predecessor of the dividend $pn$ (using the
+as-yet unexplained \texttt{Is/Nat} witness \texttt{isType/divD}), and for
+\difnd, the difference (using \texttt{minsuCV}) between $pn$ and \(\texttt{pred}\
+d\). Note that when $d$ is non-zero, \difnd is equal to the different between
+the dividend and divisor, and otherwise it is equal to $pn$; in both cases, it
+is smaller than the original pattern \(\texttt{suc}\ pn\). Finally, we test
+whether the dividend is less than the divisor: if so, return \texttt{zero}, if
+not, divide \difnd by $d$ and increment. The only parts of \texttt{divide}
+requiring further explanation, then, are the witness \texttt{isType/divD} and the
+type of $pn$, which are the keys to CoV recursion and induction in Cedille.
+
+Within the body of the μ-expression defining recursive function
+\texttt{divD} over scrutinee $n$ of type \texttt{Nat}, the following
+names are automatically bound:
+\begin{itemize}
+\item \(\texttt{Type/divD}: ★\), the type of recursive occurrences of \texttt{Nat}
+  in the types of variables bound in constructor patterns (such as $pn$).
+\item \(\texttt{isType/divD}: \texttt{Is/Nat} ·\texttt{Type/divD}\), a witness that terms of the
+  recursive-occurrence type may used for further CoV pattern matching.
+\item \(\texttt{divD}: \texttt{Type/divD} ➔ \texttt{Nat}\),
+  the recursive function being defined, accepting only terms of the
+  recursive occurrence type \texttt{Type/divD}. This restriction guarantees that
+  \texttt{divD} is only called on expressions smaller than the previous
+  argument to recursion.
+\end{itemize}
+
+The reader is now invited to revisit the definitions of Figure
+\ref{fig:cedille-standard}, keeping in mind that in the μ-expressions of
+\texttt{add} and \texttt{vappend} constructor subdata $m'$ and $xs'$
+in pattern guards \(\texttt{suc}\ m'\) and \(\texttt{vcons}\ \mhyph m'\ hd\ xs'\)
+have abstract types (the subdata of the successor case of the
+μ'-expression of \texttt{pred} has the usual type \texttt{Nat}), and
+that recursive definitions \texttt{addN} and \texttt{vappendYs} only accept
+arguments of such a type. With this understood, so to is the definition
+\texttt{divide}: predecessor $pn$ has type \texttt{Type/divD}, witness
+\texttt{isType/divD} has type \texttt{Is/Nat ·Type/divD} and so the local
+variable \difnd has type \texttt{Type/divD}, exactly as required by
+\texttt{divD}.
+
+
+\subsection{Course-of-values Induction}
+CoV recursion is not enough -- in a dependently typed language, one also wishes
+sometimes to \textit{prove} properties of recursive definitions. Cedille enables
+this with \textit{CoV induction}, which we explain with an example proof below.
+Figure \ref{fig:cov-induction} shows its use in \texttt{leDiv} to prove that the
+result of division is no larger than its first argument.
+
+\begin{figure}[h]
+\begin{alltt}
+data LE: Nat ➔ Nat ➔ ★ =
+  | leZ: Π n: Nat. LE zero n
+  | leS: Π n: Nat. Π m: Nat. LE n m ➔ LE (suc n) (suc m).
+
+leTrans: Π l: Nat. Π m: Nat. Π n: Nat. LE l m ➔ LE m n ➔ LE l n = <..>
+leMinus: Π m: Nat. Π n: Nat. LE (minus m n) m = <..>
+
+leDiv: Π n: Nat. Π d: Nat. LE (divide n d) n
+  = λ n. λ d. μ leDiv. n @(λ x: Nat. LE (divide x d) x) \{
+  | zero ➔ leZ zero
+  | suc pn ➔
+    [pn' = to/Nat -isType/leDiv pn] -
+    [diff = minus pn' (pred d)] -
+    [l = divide diff d] -
+      μ' (lt (suc pn') d) @(λ x: Bool. LE (ite x zero (suc l)) (suc pn')) \{
+      | tt ➔ leZ (suc pn')
+      | ff ➔
+        [ih: LE l diff   = leDiv (minus' -isType/leDiv pn (pred d))] -
+        [mi: LE diff pn' = leMinus pn' (pred d)] -
+          leS l pn' (leTrans l diff pn' ih mi)
+      \}
+  \}.
+\end{alltt}
+  \caption{Example of course-of-values induction}
+  \label{fig:cov-induction}
+\end{figure}
+
+We first encode the relation ``less than or equal'' as a datatype \texttt{LE}
+and prove two properties of it (definitions omitted, indicated by
+\texttt{<..>}): that it is transitive (\texttt{leTrans}) and that
+\texttt{minus} produces a result less than or equal to its first argument
+(\texttt{leMinus}). In the proof of \texttt{leDiv} itself, we define a
+recursive function (also named \texttt{leDiv}) over $n$. When it is
+zero, the goal becomes \(\texttt{LE}\ \texttt{zero}\ \texttt{zero}\), provable
+by constructor \texttt{leZ}. When it is the successor of some number $pn$, the
+expression \(\texttt{divide}\ (\texttt{suc}\ pn')\ d\) in the type of the goal
+reduces to a conditional branch on whether the dividend is less than the
+divisor. We use μ' to match on the result of \(\texttt{lt}\ (\texttt{suc}\
+pn')\ d\) to determine which branch is reached: if it is true, the
+goal type reduces further to \(\texttt{LE}\ \texttt{zero}\ (\texttt{suc}\
+pn')\), which is again provable by \texttt{leZ}; otherwise, the goal is
+\(\texttt{LE}\ (\texttt{suc}\ l)\ (\texttt{suc}\ pn')\), where $l$ is defined
+as \difnd divided by $d$.
+\underline{Here is where CoV induction is used}: to define $ih$ we invoke the inductive hypothesis
+on \(\texttt{minus'}\ \mhyph \texttt{isType/leDiv}\ pn\ (\texttt{pred}\ d)\), a term that is equal (modulo
+erasure) to \difnd but has the required abstract type
+\texttt{Type/leDiv}, letting us prove \(\texttt{LE}\ l\ \difnd\). We combine this and a
+proof of \(\texttt{LE}\ \difnd\ pn'\) (bound to $mi$) with the proof
+that \texttt{LE} is transitive, producing a proof that \(\texttt{LE}\ l\ pn'\). The
+the final obligation \(\texttt{LE}\ (\texttt{suc}\ l)\ (\texttt{suc}\ pn')\)
+is proved by constructor \texttt{leS}.
 
 \subsection{Subtyping and Coercions}
 \label{sec:subtyping-coercion}
 \begin{figure}[h]
-\begin{verbatim}
+\begin{alltt}
 mult : Nat ➔ Nat ➔ Nat
-  = λ m. λ n. μ rec. m {
-    | zero    ➔ zero
-    | succ m' ➔ add n (rec m')
-  }.
+= λ m. λ n. μ multN. m \{
+| zero ➔ zero
+| suc m ➔ add n (multN m)
+\}.
+
 fact1 : Nat ➔ Nat
-  = λ n. μ rec. m {
-    | zero    ➔ succ zero
-    | succ n' ➔ mult (succ (Nat/cast -rec/mu n')) (rec n')
-  }.
+= λ n. μ fact. n \{
+| zero ➔ suc zero
+| suc m ➔
+  mult (suc (to/Nat -isType/fact m)) (fact m)
+\}.
 
-NatCast-id : {Nat/cast ≃ λ x. x} = β.
-
+-- not yet supported
 fact2 : Nat ➔ Nat
-  = λ n. μ rec. m {
-    | zero    ➔ succ zero
-    | succ n' ➔ mult (succ n') (rec n')
-  }.
-\end{verbatim}
+= λ n. μ fact. n \{
+| zero ➔ suc zero
+| suc m ➔ mult (suc m) (fact m)
+\}.
+\end{alltt}
   \caption{Factorial with explicit and implicit coercions}
   \label{fig:ex-data-fact}
 \end{figure}
 
-The reader may wonder at this point what other ways \texttt{Nat} and
-recursive-occurence types like \texttt{rec/type} are related when there is a
-witness of type \texttt{Nat/Mu ·rec/type}. In addition to allowing the user to
-pattern-match on terms of type \texttt{rec/type} as they would with e.g.
-\texttt{Nat}, Cedilleum provides a way for users to coerce (with zero runtime
-cost) such terms to the concrete data-type. As a motivating example, consider
-trying to implement the factorial function: in the constructor case \texttt{succ
-n'}, we want to multiply the original number by the factorial (calculated via
-recursion) of its predecessor. Two implementations of factorial are shown in
-Figure \ref{fig:ex-data-fact}, showing how this conversion is done in Cedilleum.
+In the preceding code examples, every time we wished to use some term of the
+abstract recursive-occurrence type (such as \texttt{Type/divD} in
+\texttt{divide}) as if it had the concrete datatype (such as \texttt{Nat}), we
+explicitly cast the term (using e.g. \texttt{to/Nat}). We now take a moment to
+describe a feature we desire to implement in the near future: automatic
+inference of these coercions via subtyping. As an example, we provide two
+different implementations of the function factorial in Figure
+\ref{fig:ex-data-fact}: \texttt{fact1} using an explicit cast and \texttt{fact2}
+where these would be inferred.
 
-In the first version, \texttt{fact1}, an explicit cast \texttt{Nat/cast -rec/mu n'} is used
-to convert the \texttt{n'} of type \texttt{rec/type} to a \texttt{Nat};
-\texttt{Nat/cast} is a function automatically generated from the definition of datatype
-\texttt{Nat} and has type \texttt{∀ R: ★. Nat/Mu ·R ➾ R ➔ Nat}. Furthermore,
-Cedilleum's built-in equality type recognizes that this term is equal to the
-identity function (after erasure -- recall that \texttt{-rec/mu} inducates that
-the witness is given as an irrelevant or erased argument to \texttt{Nat/cast});
-this is witnessed by the proof \texttt{NatCast-id}, which holds by conversion
-checking.
+In the successor case of \texttt{fact1}, we know that the number we are
+considering is equal to the \texttt{suc}cessor of another number $m$. We wish to
+multiply \(suc\ m\) with the factorial of $m$. However, μ provides access to the
+subdata $m$ at an abstract type; this allows $m$ to be a legal argument for a
+recursive call as in \(\texttt{fac}\ m\), but not as an argument to constructor
+\texttt{suc} which requires a \texttt{Nat}. Thus, in order to multiply the two
+expressions, we first cast $m$ to \texttt{Nat} using the CoV global cast function
+\texttt{to/Nat} and CoV local evidence \texttt{isType/fact} (of type
+\(\texttt{Is/Nat} ·\texttt{Type/fact}\)).
 
-Frequently, the insertion of such casts can be deduced merely by comparing the
-``expected'' and ``actual'' type of an expression, and having these coercions
-stated explicitly is both tedious to write and to read. To that end, the type
-system of Cedilleum implements a form of subtyping between the
-recursive-occurence types and the concrete data-type. Behind the scenes, type
-inference will automatically insert the appropriate coercions (possibly after
-η-expanding the expression). A simple example of this is shown in definition
-\texttt{fact2}: the variable \texttt{n'} has ``actual'' type \texttt{rec/type}, and its
-``expected'' type in expression \texttt{succ n'} is \texttt{Nat}, so the
-expression is well typed through type subsumption since \texttt{rec/type <:
-  Nat}, as witnessed by evidence \texttt{rec/mu} of type \texttt{Nat/Mu
-  ·rec/type} (here bound but not used explicitly).
-
-\subsection{Reasoning via Induction}
-\label{sec:induction}
-\begin{figure}[h]
-\begin{verbatim}
-add-zero-r : Π m: Nat. {add m zero ≃ m}
-  = λ m. μ ih. m @(λ x: Nat. {add x zero ≃ x}) {
-         | zero   ➔ β
-         | succ r ➔ χ {succ (add r zero) ≃ succ r} - ρ (ih r) - β
-         } .
-\end{verbatim}
-  \caption{A proof via induction}
-  \label{fig:ex-data-ind}
-\end{figure}
-Figure \ref{fig:ex-data-ind} shows a simple proof that \texttt{zero} is the
-right identity of \texttt{add} using induction on \texttt{Nat}. In the base
-case, pattern \texttt{zero} is substituted for \texttt{x} in the motive, and the
-expected result type of the branch is \texttt{\{add zero zero ≃ zero\}}, which
-is true by reflexivity (notated \texttt{β}) after conversion. In the step case,
-pattern \texttt{succ r} (equivalently \texttt{succ (Nat/cast -ih/mu r)}) is
-substituted in for \texttt{x} in the motive, and the expected result type of the
-branch is \texttt{\{add (succ r) zero ≃ succ r\}} (\texttt{Nat/cast -ih/mu r}
-reduces to \texttt{r}). Operator χ allows users to write type annotations, and
-here it is used to converted the expected type to \texttt{\{succ (add r zero) ≃
-succ r\}}. Next, the ρ operator allows the user to rewrite the expected type
-using an equation, and here the equation used is the one given by the inductive
-hypothesis \texttt{ih r} of type \texttt{\{add r zero ≃ r\}}. After rewriting,
-the expected type is simply \texttt{\{succ r ≃ succ r\}} which holds by β.
-
-\subsection{Reduction Rules of μ and μ'}
-Section \ref{sec:induction} omits some details about checking convertibility of
-terms defined using μ and μ'. For example, in Figure \ref{fig:ex-data-ind} the expected type
-corresponding to the branch \texttt{succ r} in the definition of
-\texttt{add-zero-r} is \texttt{\{add (succ r) zero ≃ succ r\}}. By
-β-reduction and erasure alone, this reduces to
-\begin{verbatim}
-{ μ rec. (succ r) {
-  | zero ➔ zero
-  | succ p ➔ succ (rec p)
-  } ≃ succ r
-}
-\end{verbatim}
-
-To get the left-hand side of this equation to be convertible with \texttt{succ
-(add r zero)}, we need a μ-reduction rule. μ-reduction is a combination of
-fix-point unrolling and case-branch selection, the latter of which is usually
-called δ-reduction for languages with inductive data-types. Here, because the
-scrutinee is \texttt{succ r}, then entire μ-expression reduces to the body of
-the case-branch guarded by \texttt{succ p} (case-branch selection), with
-recursive function \texttt{rec} replaced by the entire μ-expression itself
-(fixpoint unrolling). Thus, the equation above reduces to
-\begin{verbatim}
-{ succ (μ rec. r {
-  | zero ➔ zero
-  | succ p ➔ succ (rec p)
-  }) ≃ succ r
-}
-\end{verbatim}
-
-\noindent where the left-hand side is now convertible with \texttt{succ (add r
-  zero)}. μ'-reduction only performs case-branch selection.
-
-\subsection{Non-strictly Positive Datatypes}
-\label{sec:positive-data}
-In the preceeding sections, we have that seen ``cast'' functions like
-\texttt{Nat/cast -ih/mu} (in Section \ref{sec:induction}) show up in the the expected
-type of a case branch, and also have noted already that Cedilleum allows for
-positive but not strictly positive data type defintions. We now examine
-how these two things interact.
+Alternatively, we should be able to infer this coercions by equipping type
+inference with a form of \textit{subtyping}. In the successor case of
+\texttt{fact2} (which is currently not a legal Cedille definition), when we see
+that the expected type of $m$ is \texttt{Nat}, and its actual type is
+\texttt{Type/fact}, we could search the typing context for evidence of type
+\(\texttt{Is/Nat} ·\texttt{Type/fact}\) and, finding this in the form of
+\texttt{isType/fact}, accept this definition.
 
 \begin{figure}[h]
-\begin{verbatim}
-data PTree : ★ =
-  | leaf : PTree
-  | node : ((PTree ➔ Bool) ➔ PTree) ➔ PTree
-.
+\begin{alltt}
+data PTree: ★ =
+  | leaf: PTree
+  | node: ((PTree ➔ Bool) ➔ PTree) ➔ PTree.
 
 indPTree1 : ∀ P: PTree ➔ ★.
-    P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
-    Π t: PTree. P t
-  = Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
-  | leaf ➔ base
+  P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+  Π t: PTree. P t
+= Λ P. λ l. λ n. λ t. μ ih. t @(λ x: PTree. P x) \{
+  | leaf ➔ l
   | node s ➔
-    [ s1 : (PTree ➔ Bool) ➔ ih/type = λ p. s (λ t. p (Nat/cast -ih/mu p)) ]
-  - [ s2 : (PTree ➔ Bool) ➔ PTree = λ p. Nat/cast -ih/mu (s1 p) ]
-  - step -s2 (λ p. ih (s1 p))
-  }.
+    [s1 : (PTree ➔ Bool) ➔ Type/ih = λ p. s (λ t. p (to/PTree -isType/ih t))]
+  - [s2 : (PTree ➔ Bool) ➔ PTree   = λ p. to/PTree -isType/ih (s1 p)]
+  - n -s2 (λ p. ih (s1 p))
+  \}.
 
+-- not yet implemented
 indPTree2 : ∀ P: PTree ➔ ★.
-    P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
-    Π t: PTree. P t
-  = Λ P. λ base. λ step. λ t. μ ih. t @(λ x: PTree. P x) {
-  | leaf ➔ base
-  | node s ➔ step -s (λ p. ih (s p))
-  }.
-\end{verbatim}
-  \caption{A non-strictly positive infinitary tree}
+  P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+  Π t: PTree. P t
+=  Λ P. λ l. λ n. λ t. μ ih. t @(λ x: PTree. P x) \{
+| leaf ➔ l
+| node s ➔ n -s (λ p. ih (s p))
+\}.
+\end{alltt}
+  \caption{Subtyping for a non-strictly positive type}
   \label{fig:ptree}
 \end{figure}
 
-Figure \ref{fig:ptree} presents a definition of \texttt{PTree}, an infinitary
-tree which is not strictly positive in the \texttt{node} constructor, and two
-proofs of induction for it, one using explicit coercions and one utilizing
-subtyping to infer these coercions. As a type, \texttt{PTree} is a somewhat
-contrived example, but one intuition for what kind of terms inhabit it is ``at a
-\texttt{node}, there must be some way of selecting some sub-tree using a
-predicate \texttt{PTree ➔ Bool}''.
+The story becomes more complex in the presence of non-strictly positive
+datatypes. Figure \ref{fig:ptree} presents a definition of \texttt{PTree}, an
+infinitary tree which a non-strict positive recursive occurrence in the
+\texttt{node} constructor, and two proofs of induction for it, one using
+explicit coercions and one utilizing subtyping to infer these coercions. As a
+type, \texttt{PTree} is a somewhat contrived example, but one intuition for what
+kind of terms inhabit it is ``at a \texttt{node}, there must be some way of
+selecting some sub-tree using a predicate \texttt{PTree ➔ Bool}''.
 
-In both versions, the branch given by patterm \texttt{leaf} corresponds to the
-\texttt{base} case, requiring a proof of \texttt{P leaf}. For the \texttt{step}
-case, the expected type is \texttt{P (node s)} (equivalently \texttt{P (node
-  s2)}, where \texttt{s2} is locally defined in \texttt{indPTree1}). Here,
-\texttt{s} has type \texttt{(ih/type ➔ Bool) ➔ ih/type}, and the two different
-occurences of \texttt{s} in the arguments to \texttt{step} require it to have
-two different but related types, corresponding resp. to the types of \texttt{s2}
-and \texttt{s1} in \texttt{indPTree1}. Again, the subtyping problems
-\texttt{(ih/type ➔ Bool) ➔ ih/type <: (PTree ➔ Bool) ➔ PTree} and
-\texttt{(ih/type ➔ Bool) ➔ ih/type <: (PTree ➔ Bool) ➔ ih/type} can be
-solved, with coercions implicitly inserted, algorithmically by
-inverting the type constructors of the sub- and super-types, so definition
-\texttt{indPTree2} is also admissable.
+In both versions, the branch given by pattern \texttt{leaf} corresponds to the
+given assumption $l$ proving \(P\ \texttt{leaf}\). In the \texttt{node} case of
+\texttt{indPTree1}, the expected type is \(P\ (\texttt{node}\ s)\). The
+pattern-bound variable $s$ has type \((\texttt{Type/ih} ➔ \texttt{Bool}) ➔
+\texttt{Type/ih}\), and the two different occurrences of $s$ in the arguments to
+the assumed proof $n$ require casting $s$ to two different types, corresponding
+to the two explicit type coercions of $s$ locally bound to $s1$ and $s2$ (note
+that these two expressions are $β\eta$-convertible with $s$).
+
+In the \texttt{node} case of \texttt{indPTree2}, the two occurrences of $s$ in
+the arguments to $n$ correspond to two subtyping problems:
+\begin{itemize}
+\item \((\texttt{Type/ih} ➔ \texttt{Bool}) ➔ \texttt{Type/ih}\ \les\ (\texttt{PTree} ➔
+  \texttt{Bool}) ➔ \texttt{PTree}\)
+\item \((\texttt{Type/ih} ➔ \texttt{Bool}) ➔ \texttt{Type/ih}\ \les\ (\texttt{PTree} ➔
+  \texttt{Bool}) ➔ \texttt{Type/ih}\)
+\end{itemize}
+
+Such subtyping problems can solved algorithmically and the necessary coercions
+to the desired type inserted automatically.
 
 \subsection{Program Reuse}
-We conclude our informal introduction to Cedilleum with a somewhat more complex
-example: how to support program reuse over different data-types at zero
-run-time cost. Often, when working in a setting with dependent types,
-programmers find they must write several different versions of a datatype
-depending upon the invariants they wish to enfore by the type system. A classic
-example is non-indexed \texttt{List} and length-indexed \texttt{Vec} -- if the
-programmer has writen several functions for the former, and discovers that they
-must rework their code because they need the latter, their choices are usually
-either to re-implement the existing \texttt{List} functions for \texttt{Vec}, or to write
-conversion functions between \texttt{List} and \texttt{Vec} to re-use the
-existing functions. For this second option, such conversion functions usually must
-tear down one structure while rebuilding the other, taking linear time. In
-Cedileum it is possible to define \textit{zero-cost} coercions between
-\texttt{List} and \texttt{Vec} and indeed between many different types, provided
-that certain conditions hold.
+\label{sec:zc-reuse}
+We conclude our informal introduction to Cedille's datatype system with a
+somewhat more complex example: how to support program reuse over different
+data-types at zero run-time cost. For datatypes encoded as λ-terms in Cedille,
+it is possible that some constructor between the two types are definitionally
+equal. For example, for λ-encoded \texttt{List} and \texttt{Vec} constructors
+\texttt{nil} (\texttt{cons}) and \texttt{vnil} (\texttt{vcons}) are indeed equal
+modulo erasure. When Cedille elaborates the \textit{declared
+  datatypes} \texttt{List} and \texttt{Vec}, this correspondence also holds.
+Cedille's datatype system internalizes this fact, meaning
+the declared constructors \texttt{nil} (\texttt{cons}) and \texttt{vnil}
+(\texttt{vcons}) are \textit{themselves definitionally equal}. This is
+shown in the following example with manual zero-cost reuse of
+\texttt{map} for \texttt{List} in \texttt{vmap} for \texttt{Vec}.
 
-To start, we give the definitions for \texttt{List} and for function
-\texttt{l2v'} which one could write in virtually any dependently typed language.
+\begin{figure}[h]
+\begin{alltt}
+len: ∀ A: ★. List ·A ➔ Nat = <..>
+map: ∀ A B: ★. (A ➔ B) ➔ List ·A ➔ List ·B = <..>
 
-\begin{verbatim}
-data List (A: ★): ★ =
-  | nil : List
-  | cons : A ➔ List ➔ List
-  .
-
-len : ∀ A: ★. List ·A ➔ Nat
-  = Λ A. λ xs. μ rec. xs {
-  | nil ➔ zero
-  | cons x xs ➔ succ (rec xs)
-  }.
-
-append : ∀ A: ★. List ·A ➔ List ·A ➔ List ·A
-  = Λ A. λ xs. λ ys. μ rec. xs {
-  | nil ➔ ys
-  | cons x xs ➔ cons x (rec xs)
- }.
-
-l2v' : ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
-  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. Vec ·A (len x)) {
-  | nil       ➔ vnil ·A
-  | cons x xs ➔ vcons -(len (List/cast -ih/mu xs)) x (ih xs)
-  }.
-\end{verbatim}
-
-Next we see something unique to Cedilleum: the pairs of constructors \texttt{nil}
-and \texttt{vnil}, and \texttt{cons} and \texttt{vcons}, are provably equal.
-This is necessary (though not sufficient) for proving
-\texttt{l2v-reflection}, which states that conversion function \texttt{l2v}
-behaves extensionally like an identity function.
-
-\begin{verbatim}
--- constructor equalities
-l2v-eq-nil  : {nil  ≃ vnil}  = β.
-l2v-eq-cons : {cons ≃ vcons} = β.
-
--- reflection law
-l2v-reflection : ∀ A: ★. Π xs: List ·A. {l2v xs ≃ xs}
-  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. {l2v x ≃ x}) {
-  | nil       ➔ χ {nil ≃ vnil} - β
-  | cons x xs ➔ χ {vcons x (l2v xs) ≃ cons x xs}
-  - ρ (ih xs) - β
-  }.
-\end{verbatim}
-
-How is it that Cedilleum decides these constructors are convertible? The precise
-details depend upon the shape of the λ-terms to which Cedilleum elaborates the
-data-type declarations, but, if \texttt{c} is a constructor of type \texttt{C}
-and \texttt{d} is a constructor of type \texttt{D} (not necessarily distinct for
-\texttt{C}), then the general rules are:
-
-\begin{enumerate}
-\item \texttt{C} and \texttt{D} must have the same number of constructors.
-
-  In the definition \texttt{data Unit: ★ = | triv : Unit .}, \texttt{triv} would
-  not be equal to any constructor of any data-type seen so far in this document,
-  as \texttt{Unit} has only one constructor and \texttt{Nat}, \texttt{Bool},
-  \texttt{List}, \texttt{Vec}, and \texttt{PTree} all have two constructors.
-
-\item \texttt{c} and \texttt{d} must occur in the same order in the constructor
-  list of their respective data-type declaration
-
-  For example, \texttt{nil} and \texttt{vnil} are both the first listed
-  constructor for their types, but for the data-type
-\begin{verbatim}
-data List' (A: ★): ★ =
-  | cons' : A ➔ List' ➔ List'
-  | nil'  : List'
-.
-\end{verbatim}
-\noindent which is isomorphic to \texttt{List}, constructor \texttt{nil'} is
-\textit{not} convertible with \texttt{nil} and zero-cost reuse between
-\texttt{List} and \texttt{List'} is \textit{not} possible. This same condition also
-prevents different constructors of the same type from being seen as convertible
-(e.g. \texttt{tt} and \texttt{ff} of type \texttt{Bool} are provably distinct).
-
-\item constructors \texttt{c} and \texttt{d} must take the same number of
-  unerased arguments. Erased arguments, and even the types of unerased
-  arguments, do not matter.
-
-  This is how, in particular, \texttt{cons} and \texttt{vcons} can be equated
-  even though \texttt{vcons} takes an additional (erased) \texttt{Nat} argument.
-  This also means that some strange constructor equalities hold:
-
-\begin{verbatim}
-eq-zero-tt   : {zero ≃ tt} = β. -- {succ ≃ ff} is not provable
-eq-zero-leaf : {zero ≃ leaf} = β. 
-eq-succ-node : {succ ≃ node} = β.
-\end{verbatim}
-
-  Despite the fact that each constructor of \texttt{Nat} is convertible with a
-  constructor of \texttt{PTree}, it is not possible to define a conversion
-  function \texttt{n2pt : Nat ➔ PTree} for which \texttt{∀ x: Nat. \{n2pt x ≃
-    x\}} is provable, which (we will see next) is needed for zero-cost conversions.
-\end{enumerate}
-
-To recapitulate, we have a linear-time conversion function \texttt{l2v'} that
-we proved behaves extensionally like an identity function. With this, and with the term
-construct \texttt{φ}, we can write a conversion function that after erasure is
-\textit{intensionally} equal to the identity:
-
-\begin{verbatim}
-l2v : ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
-  = Λ A. λ xs. φ (l2v-reflection xs) - (l2v' xs) {xs}.
-
-eq-l2v-id = {l2v ≃ λ x. x} = β.
-\end{verbatim}
-\noindent In \texttt{l2v}, the entire φ expression erases to the term in curly braces
-(\texttt{\{xs\}}), has the type \texttt{Vec ·A (len xs)} of subexpression
-\texttt{l2v' xs}, and requires a proof that these two terms are equal (which is
-satisfied by \texttt{l2v-reflection xs}).
-
-From this point, the reuse is straight-forward: define reuse in the other
-direction (re-use of \texttt{Vec} as \texttt{List}) with \texttt{v2l}, lemma
-\texttt{v2l-len} relating the vector index to the length of a list after
-conversion, lemma \texttt{append-len} relating the length of the list computed
-by \texttt{append} to its two input lists, and finally \texttt{vappend'} which
-works by casting its two input \texttt{Vec}s to \texttt{List}s,
-\texttt{append}ing them, and casting the result back to \texttt{Vec}. The payoff
-comes at the last line of the code listing below: \texttt{v2l-eq-append} proves
-that function \texttt{vappend'} is definitionally equal to \texttt{append},
-meaning our conversions between the two data-structures required no run-time cost!
-
-\begin{verbatim}
-v2l' : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
-  = Λ A. Λ n. λ xs. μ rec. xs {
+v2l: ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+  = Λ A. Λ n. λ xs. μ v2l. xs \{
   | vnil ➔ nil ·A
-  | vcons -i x xs ➔ cons x xs
-  }.
+  | vcons -n' hd tl ➔ cons hd (v2l -n' tl)
+  \}.
 
-v2l-reflection : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {v2l' xs ≃ xs}
-  = Λ A. Λ n. λ xs. μ ih. v @(λ i: Nat. λ x: Vec ·A i. {v2l' x ≃ x}) {
+l2v: ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
+  = Λ A. λ xs. μ l2v. xs @(λ x: List ·A. Vec ·A (len x)) \{
+  | nil ➔ vnil ·A
+  | cons hd tl ➔ vcons -(len (to/List -isType/l2v tl)) hd (l2v tl)
+  \}.
+\end{alltt}
+  \caption{\texttt{len}, \texttt{map}, and linear-time conversion between
+    \texttt{List} and \texttt{Vec}}
+  \label{fig:cedille-list}
+\end{figure}
+
+\paragraph{\textbf{Manual zero-cost reuse of \texttt{map} for \texttt{vmap}}}
+Figure \ref{fig:cedille-list} gives the definitions of the linear-time
+conversion functions \texttt{v2l} and \texttt{l2v}, as well as the types for
+list operations \texttt{len} and \texttt{map} (\texttt{List} is given in Figure
+\ref{fig:cedille-data-standard}, \texttt{<..>} and \texttt{\_} indicate resp.
+an omitted def. and anonymous proof). First, and as promised, Cedille
+considers the corresponding constructors of \texttt{List} and \texttt{Vec}
+definitionally equal: 
+{
+\begin{alltt}
+_ : \{nil  ≃ vnil\}  = β.
+_ : \{cons ≃ vcons\} = β.
+\end{alltt}
+}%
+This means that the linear-time functions \texttt{v2l} and \texttt{l2v} merely
+return a term equal to their argument at a different type. Indeed, this is
+provable in Cedille by easy inductive proofs \texttt{vl2Id} and \texttt{l2vId}
+(Figure \ref{fig:cedille-convert-int}), rewriting the expected branch type by ρ
+(Figure \ref{sfig:cdle-eq}) in the \texttt{cons} and \texttt{vcons} cases using
+the inductive hypothesis and making implicit use of constructor equality. Thanks
+to $\varphi$ (casting a term to the type of another it is proven equal to, Figure
+\ref{sfig:cdle-eq}), these proofs give rise to coercions \texttt{v2l!} and
+\texttt{l2v!} between \texttt{List} and \texttt{Vec} that erase to identity
+functions -- meaning there is no performance penalty for using them! By
+notational convention, identifiers suffixed with the bang (!) character indicate
+zero-cost coercions between types.
+
+With \texttt{v2l!} and \texttt{l2v!} and the two lemmas \texttt{mapPresLen} and
+\texttt{v2lPresLen} resp. stating that \texttt{map} and \texttt{v2l!} preserve
+the length of their inputs, we can now define \texttt{vmap} (Figure
+\ref{fig:cedille-vmap}) over \texttt{Vec} by reusing \texttt{map} for
+\texttt{List} with no run-time cost, demonstrating that Cedille's datatype
+system does not prevent use of this desirable property derived in its core
+theory CDLE.
+
+\begin{figure}[h]
+  \small
+\begin{alltt}
+v2lId: ∀ A: ★. ∀ n: Nat. Π vs: Vec ·A n. \{v2l vs ≃ vs\}
+  = Λ A. Λ n. λ vs. μ v2lId. vs @(λ i: Nat. λ x: Vec ·A i. \{v2l x ≃ x\}) \{
   | vnil ➔ β
-  | vcons -i x xs ➔
-    χ {cons x (v2l' xs) ≃ vcons x xs}
-  - ρ (ih -i xs) - β
-  }.
+  | vcons -i hd tl ➔ ρ (v2lId -i tl) @ x. \{cons hd x ≃ vcons hd tl\} - β
+  \}.
 
-v2l : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
-  = Λ A. Λ n. λ xs. φ (v2l-reflection -n xs) - (v2l' -n xs) {xs}.
-
-v2l-len : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {n ≃ len (v2l xs)}
-  = Λ A. Λ n. λ xs. μ ih. xs @(λ i: Nat. λ x: Vec ·A i. {i ≃ len (v2l x)}) {
-  | vnil ➔ β
-  | vcons -n' x xs ➔ ρ (ih -n' xs) - β
-  }.
-
-append-len : ∀ A: ★. Π xs: List ·A. Π ys: List ·A.
-    {add (len xs) (len ys) ≃ len (append xs ys)}
-  = Λ A. λ xs. λ ys. μ ih. xs @(λ x: List ·A. {add (len x) (len ys) ≃ len (append x ys)}) {
+l2vId: ∀ A: ★. Π ls: List ·A. \{l2v ls ≃ ls\}
+  = Λ A. λ ls. μ l2vId. ls @(λ x: List ·A. \{l2v x ≃ x\}) \{
   | nil ➔ β
-  | cons x xs ➔
-    χ {succ (add (len xs) (len ys)) ≃ succ (len (append xs ys))}
-  - ρ (ih xs) - β
-  }.
+  | cons hd tl ➔ ρ (l2vId tl) @ x. \{vcons hd x ≃ cons hd tl\} - β
+  \}.
 
-vappend' : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
-  = Λ A. Λ m. Λ n. λ xs. λ ys.
-    [ xs' = v2l -m xs] - [ m-eq = v2l-len -m xs ]
-  - [ ys' = v2l -n ys] - [ n-eq = v2l-len -n ys ]
-  - ρ m-eq - ρ n-eq - ρ (append-len (v2l -m xs) (v2l -n ys))
-  - l2v (append xs' ys').
+v2l!: ∀ A : ★. ∀ n: Nat. Π vs: Vec ·A n. List ·A
+  = Λ A. Λ n. λ vs. φ (v2lId -n vs) - (v2l -n vs) \{vs\}.
+_ : \{v2l! ≃ λ vs. vs\} = β.
 
-v2l-eq-append : {append ≃ vappend'} = β.
-\end{verbatim}
+l2v!: ∀ A: ★. Π ls: List ·A. Vec ·A (len ls)
+  = Λ A. λ ls. φ (l2vId ls) - (l2v ls) \{ls\}.
+_ : \{l2v! ≃ λ ls. ls\} = β.
+\end{alltt}
+  \caption{Zero-cost conversions between \texttt{Vec} and \texttt{List}}
+  \label{fig:cedille-convert-int}
+\end{figure}
+
+\begin{figure}[h]
+\small
+\begin{alltt}
+mapPresLen: ∀ A: ★. ∀ B: ★. Π f: A ➔ B. Π xs: List ·A. \{len xs ≃ len (map f xs)\} = <..>
+v2lPresLen: ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. \{n ≃ len (v2l! -n xs)\} = <..>
+
+vmap: ∀ A B: ★. ∀ n: Nat. (A ➔ B) ➔ Vec ·A n ➔ Vec ·B n
+  = Λ A B n. λ f xs. ρ (v2lPresLen -n xs) - ρ (mapPresLen f (v2l! -n xs))
+  - l2v! (map f (v2l! -n xs)).
+_ : \{vmap ≃ map\} = β.
+\end{alltt}
+  \caption{Zero-cost reuse of \texttt{map} for \texttt{Vec}}
+  \label{fig:cedille-vmap}
+\end{figure}
+
+\paragraph{\textbf{Definitional Equality of Constructors}}
+Under what conditions should users expect Cedille to equate constructors of
+different datatypes? Certainly they should \textit{not} be required to know the
+details of elaboration to use features like zero-cost reuse that depend
+on this. Fortunately, there is a simple, high-level explanation for when
+different constructors are considered equal that makes reference only to the
+shape of the datatype declaration. We give this here informally, with
+the formal statement and soundness property given in the technical portion of
+this document.
+
+If $c$, $c{'}$ are resp. constructors of
+datatype $D$ and $D'$, then $c$ and $c{'}$ are equal iff:
+\begin{itemize}
+\item $D$ and $D{'}$ have the same number of constructors;
+\item the index of $c$ in the list of constructors for $D$ is the same as
+  the index of $c{'}$ in the list of constructors for $D'$; and
+\item $c$ and $c{'}$ take the same number of unerased arguments
+\end{itemize}
+
+That these three conditions hold for the corresponding constructors of
+\texttt{List} and \texttt{Vec} is readily verified: both datatypes have two
+constructors; \texttt{nil} (\texttt{cons}) and \texttt{vnil} (\texttt{vcons})
+are each the first (second) entries in their datatype's constructor list; and
+\texttt{nil} and \texttt{vnil} take no arguments while \texttt{cons} and
+\texttt{vcons} take two unerased argument (the \texttt{Nat} argument to
+\texttt{vcons} is erased). It is clear also these conditions
+prohibit two different constructors of the same datatype from ever being
+equated, as their index in the constructor list would necessarily be different.
+
+This scheme for equating data constructors perhaps leads to some
+counter-intuitive results. First, changing the order of the constructors of
+\texttt{List} prevents zero-cost reuse between it and \texttt{Vec}. Second,
+between two datatypes with the same number of constructors, some constructors
+may be equal and others not. For example, \texttt{List} and \texttt{Nat} have
+two constructors, and the first of both takes no arguments. Thus, equality
+between \texttt{zero} and \texttt{nil} holds definitionally, but is not possible for
+\texttt{suc} and \texttt{cons}. The very same phenomenon occurs for e.g.
+Church-encoded numbers and lists.
 
 \section{Syntax}
 \label{sec:syntax}
@@ -1462,7 +1710,7 @@ expression as
 \end{itemize}
 
 For a simple example, the μ'-expression in the body of predecessor in Figure
-\ref{fig:ex-data-div}, \texttt{pred'}, would be represented as
+\ref{fig:ex-data-div}, \texttt{predCV}, would be represented as
 \[
   \mupsche{\texttt{r}}{\texttt{muWit}}{\texttt{λx:Nat.R}}{
     \texttt{r}, \texttt{λp.p}
@@ -1485,13 +1733,13 @@ For a simple example, the μ'-expression in the body of predecessor in Figure
 \end{itemize}
 
 As an example, in the definition of subtraction in Figure
-\ref{fig:ex-data-div}, \texttt{minus'}, the μ-expressions would be represented
+\ref{fig:ex-data-div}, \texttt{minsuCV}, the μ-expressions would be represented
 as
 \[
   \musche{\texttt{rec}}{\texttt{n}}{\Gamma_L}{\texttt{λn:Nat.R}}
   {\begin{array}{c}
      \texttt{m}
-     \\ \texttt{λ n'.pred' -muWit (rec n')}
+     \\ \texttt{λ n'.predCV -muWit (rec n')}
    \end{array}
     }
 \]
