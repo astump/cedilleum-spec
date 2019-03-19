@@ -1,0 +1,223 @@
+module sec1.
+
+-- Section 1: Introduction
+-- ==================================================
+
+-- Section 1.1: Datatype Declarations
+-- --------------------------------------------------
+
+-- Non-recursive
+data Bool: ★ =
+  | tt: Bool
+  | ff: Bool.
+
+-- Recursive
+data Nat: ★ =
+  | zero: Nat
+  | succ: Nat ➔ Nat.
+
+-- Recursive, parameterized, indexed
+data Vec (A: ★): Nat ➔ ★ =
+  | vnil: Vec zero
+  | vcons: ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n).
+
+-- Section 1.2: Function Definitions
+-- --------------------------------------------------
+
+-- Non-recursive
+ite : ∀ X: ★. Bool ➔ X ➔ X ➔ X
+  = Λ X. λ b. λ t. λ f. μ' b {tt ➔ t | ff ➔ f}.
+
+-- Recursive
+add : Nat ➔ Nat ➔ Nat
+  = λ m. λ n. μ addN. m {zero ➔ n | succ m ➔ succ (addN m)}.
+
+-- Recursive, parameterized, indexed
+vappend : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+  = Λ A. Λ m. Λ n. λ xs. λ ys. μ vappendYs. xs @(λ i: Nat. λ x: Vec ·A i. Vec ·A (add i n)) {
+  | vnil ➔ ys
+  | vcons -m x xs ➔ vcons -(add m n) x (vappendYs -m xs)
+  }.
+
+-- Section 1.3: Course-of-Values Recursion
+-- --------------------------------------------------
+
+-- predecessor is intrinsically non-increasing
+predCV : ∀ N: ★. Is/Nat ·N ➾ N ➔ N
+  = Λ R. Λ is. λ n. μ'<is> n {zero ➔ n | succ n ➔ n}.
+
+-- predecessor specialized to concrete Nat
+pred = predCV -is/Nat.
+
+-- minus is intrinsically non-increasing
+minusCV : ∀ N: ★. Is/Nat ·N ➾ N ➔ Nat ➔ N
+  = Λ N. Λ is. λ m. λ n. μ mMinus. n {
+  | zero ➔ m
+  | succ n ➔ predCV -is (mMinus n)
+  }.
+
+-- minus specialized to concrete Nat
+minus = minusCV -is/Nat.
+
+-- less-than comparator
+lt : Nat ➔ Nat ➔ Bool
+  = λ m. λ n. μ' (minus (succ m) n) {zero ➔ tt | succ _ ➔ ff}.
+
+-- division for natural numbers
+divide : Nat ➔ Nat ➔ Nat
+  = λ m. λ n. μ divN. m {
+  | zero ➔ zero
+  | succ m ➔
+    [m' = to/Nat -isType/divN m]
+  - [diff = minusCV -isType/divN m (pred n)]
+  - ite (lt (succ m') n) zero
+      (succ (divN diff))
+  }.
+
+-- Section 1.4: Subtyping and Coercions
+-- --------------------------------------------------
+
+mult : Nat ➔ Nat ➔ Nat
+  = λ m. λ n. μ multN. m {
+  | zero ➔ zero
+  | succ m ➔ add n (multN m)
+  }.
+
+fact1 : Nat ➔ Nat
+  = λ n. μ fact. n {
+  | zero ➔ succ zero
+  | succ m ➔
+    [m' = to/Nat -isType/fact m]
+  - mult (succ m') (fact m)
+  }.
+
+toNat_id : {to/Nat ≃ λ x. x} = β.
+
+-- not yet implemented
+{-
+-- fact2 : Nat ➔ Nat
+--   = λ n. μ fact. n {
+--   | zero ➔ succ zero
+--   | succ m ➔ mult (succ m) (fact m)
+--   }.
+-}
+
+-- Section 1.5: Reasoning via Induction
+-- --------------------------------------------------
+
+addZeroR : Π m: Nat. {add m zero ≃ m}
+  = λ m. μ ih. m @(λ x: Nat. {add x zero ≃ x}) {
+  | zero ➔ β
+  | succ r ➔ ρ (ih r) @ x. {succ x ≃ succ r} - β
+  }.
+
+-- Section 1.6: Reduction Rules of μ and μ'
+-- --------------------------------------------------
+
+muReduceAddZeroR : Π m: Nat. {add (succ m) zero ≃ succ m} ➔
+    {succ (μ rec. m {zero ➔ zero | succ m ➔ succ (rec m)}) ≃ succ m}
+  = λ m. λ eq. eq.
+
+-- Section 1.7: Non-strictly Positive Datatypes
+-- --------------------------------------------------
+
+data PTree: ★ =
+  | leaf: PTree
+  | node: ((PTree ➔ Bool) ➔ PTree) ➔ PTree.
+
+indPTree1 : ∀ P: PTree ➔ ★.
+  P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+  Π t: PTree. P t
+= Λ P. λ l. λ n. λ t. μ ih. t @(λ x: PTree. P x) {
+  | leaf ➔ l
+  | node s ➔
+    [s1 : (PTree ➔ Bool) ➔ Type/ih = λ p. s (λ t. p (to/PTree -isType/ih t))]
+  - [s2 : (PTree ➔ Bool) ➔ PTree   = λ p. to/PTree -isType/ih (s1 p)]
+  - n -s2 (λ p. ih (s1 p))
+  }.
+
+{- not yet implemented
+--
+-- indPTree2 : ∀ P: PTree ➔ ★.
+--  P leaf ➔ (∀ s: (PTree ➔ Bool) ➔ PTree. (Π p: PTree ➔ Bool. P (s p)) ➔ P (node s)) ➔
+--  Π t: PTree. P t
+-- =  Λ P. λ l. λ n. λ t. μ ih. t @(λ x: PTree. P x) {
+-- | leaf ➔ l
+-- | node s ➔ n -s (λ p. ih (s p))
+-- }.
+-}
+
+-- Section 1.8: Program Reuse
+-- --------------------------------------------------
+
+data List (A: ★): ★ =
+  | nil: List
+  | cons: A ➔ List ➔ List.
+
+len : ∀ A: ★. List ·A ➔ Nat
+  = Λ A. λ xs. μ len. xs {
+  | nil ➔ zero
+  | cons _ xs ➔ succ (len xs)
+  }.
+
+append : ∀ A: ★. List ·A ➔ List ·A ➔ List ·A
+  = Λ A. λ xs. λ ys. μ appendYs. xs {
+  | nil ➔ ys
+  | cons x xs ➔ cons x (appendYs xs)
+  }.
+
+l2v : ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
+  = Λ A. λ xs. μ ih. xs @(λ x: List ·A. Vec ·A (len x)) {
+  | nil ➔ vnil ·A
+  | cons x xs ➔ vcons -(len (to/List -isType/ih xs)) x (ih xs)
+  }.
+
+
+-- constructor equalities
+eq-nil-vnil : {nil ≃ vnil} = β.
+eq-cons-vcons : {cons ≃ vcons} = β.
+
+l2vId : ∀ A: ★. Π xs: List ·A. {l2v xs ≃ xs}
+= Λ A. λ xs. μ ih. xs @(λ x: List ·A. {l2v x ≃ x}) {
+  | nil ➔ β
+  | cons x xs ➔ ρ (ih xs) @ y. {vcons x y ≃ cons x xs} - β
+  }.
+
+l2v! : ∀ A: ★. Π xs: List ·A. Vec ·A (len xs)
+= Λ A. λ xs. φ (l2vId xs) - l2v xs {xs}.
+
+eq-l2v!-id : {l2v! ≃ λ x. x} = β.
+
+v2l : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+= Λ A. Λ n. λ xs. μ v2l. xs {
+  | vnil ➔ nil ·A
+  | vcons -n x xs ➔ cons x (v2l -n xs)
+  }.
+
+v2lId : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {v2l xs ≃ xs}
+= Λ A. Λ n. λ xs. μ ih. xs @(λ i: Nat. λ x: Vec ·A i. {v2l x ≃ x}) {
+  | vnil ➔ β
+  | vcons -n x xs ➔ ρ (ih -n xs) @ y. {cons x y ≃ vcons x xs} - β
+  }.
+
+v2l! : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ List ·A
+= Λ A. Λ n. λ xs. φ (v2lId -n xs) - v2l -n xs {xs}.
+
+v2lPresLen : ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. {n ≃ len (v2l! xs)}
+= Λ A. Λ n. λ xs. μ ih. xs @(λ i: Nat. λ x: Vec ·A i. {i ≃ len (v2l! x)}) {
+  | vnil ➔ β
+  | vcons -n x xs ➔ ρ (ih -n xs) @ x. {succ x ≃ succ (len (v2l! xs))} - β
+  }.
+
+appendAddLen : ∀ A: ★. Π xs: List ·A. Π ys: List ·A. {add (len xs) (len ys) ≃ len (append xs ys)}
+= Λ A. λ xs. λ ys. μ ih. xs @(λ x: List ·A. {add (len x) (len ys) ≃ len (append x ys)}) {
+  | nil ➔ β
+  | cons x xs ➔ ρ (ih xs) @ x. {succ x ≃ succ (len (append xs ys))} - β
+  }.
+
+vappend' : ∀ A: ★. ∀ m: Nat. ∀ n: Nat. Vec ·A m ➔ Vec ·A n ➔ Vec ·A (add m n)
+= Λ A. Λ m. Λ n. λ xs. λ ys.
+    [xs' = v2l! -m xs] - [eqM = v2lPresLen -m xs]
+  - [ys' = v2l! -n ys] - [eqN = v2lPresLen -n ys]
+  - ρ eqM - ρ eqN - ρ (appendAddLen xs' ys')
+  - l2v (append xs' ys').
