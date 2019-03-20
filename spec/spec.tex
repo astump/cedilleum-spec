@@ -48,10 +48,19 @@
 \newcommand{\abs}[4]{{#1}\, #2\! : \! #3.\, #4}
 \newcommand{\absu}[3]{{#1}\, #2.\, #3}
 \mathchardef\mhyph="2D % Define a "math hyphen"
+\newcommand{\splab}[1]{\ensuremath{^{\text{#1}}}}
+\newcommand{\elalab}[1]{\ensuremath{\overset{\text{#1}}{\elab}}}
+\newcommand{\elapos}{\ensuremath{\overset{\text{+}}{\elab}}}
+\newcommand{\elales}{\ensuremath{\elab}}
+
 \newcommand{\indast}[5]{\texttt{Ind}_{#1} [#2] (#3 : #4 = #5)}
 % inductive-declaration scheme
 % μ' scheme, μ scheme
-\newcommand{\indsche}[6]{\texttt{Ind}[#1,#2,#3,#4,#5,#6]}
+\newcommand{\indsche}[3]{\ensuremath{\text{Ind}[#1,#2,#3]}}
+\newcommand{\indel}[5]{\ensuremath{\text{IndEl[}#1,#2,#3,#4,#5\text{]}}}
+\newcommand{\indeli}[7]{\ensuremath{\text{IndElI[}#1,#2,#3,#4,#5,#6,#7\text{]}}}
+\newcommand{\labgam}[1]{\ensuremath{\Gamma_{\text{#1}}}}
+
 \newcommand{\mupsche}[4]{μ'[#1,#2,#3,#4]}
 \newcommand{\musche}[5]{μ[#1,#2,#3,#4,#5]}
 \newcommand{\lowerc}[1]{\lfloor {#1} \rfloor}
@@ -64,8 +73,11 @@
 \newcommand{\decchk}{\vdash_{\Downarrow}}
 
 % - inductive
-\newcommand{\mufix}[3]{μ\ #1\ .\ #2\ \textbf{\{} #3 \textbf{\}}}
-\newcommand{\mumat}[2]{μ'\ #1\ \textbf{\{}#2\textbf{\}}}
+\newcommand{\mufix}[4]{\ensuremath{μ\ #1.\ #2\ @#3\ \{\texttt{|}\ #4\}}}
+\newcommand{\mufixu}[3]{\ensuremath{μ\ #1.\ #2\ \{\texttt{|}\ #3\}}}
+\newcommand{\mumat}[4]{\ensuremath{μ'\texttt{<$#1$>}\ #2\ @#3\ \{\texttt{|}\ #4\}}}
+\newcommand{\mumatu}[2]{\ensuremath{μ'\ #1\ \{\texttt{|}#2\}}}
+
 \newcommand{\wfpat}[4]{WF\!\mhyph\!Pat(#1,#2,#3,#4)}
 \newcommand{\llbrace}{\{\!\{}
 \newcommand{\rrbrace}{\}\!\}}
@@ -74,6 +86,7 @@
 \DeclareUnicodeCharacter{03A8}{\ensuremath{\piforall}} % maps Ψ to \piforall
 \DeclareUnicodeCharacter{03C8}{\ensuremath{\lamLam}}   % maps ψ to \lamLam
 \newcommand{\reduce}{\ensuremath{\rightsquigarrow}}
+\newcommand{\elab}{\hookrightarrow}
 
 \newcommand{\difnd}{\ensuremath{di\!f\!f\ }}
 \newcommand{\les}{\texttt{\,<:\,}}
@@ -86,7 +99,8 @@
 \author{Christopher Jenkins}
 
 \maketitle
-
+\tableofcontents
+\newpage
 \section{Introduction}
 \label{sec:intro}
 This document describes the datatype subsystem of Cedille, to be introduced in
@@ -905,7 +919,6 @@ _ : \{l2v! ≃ λ ls. ls\} = β.
 \end{figure}
 
 \begin{figure}[h]
-\small
 \begin{alltt}
 mapPresLen: ∀ A: ★. ∀ B: ★. Π f: A ➔ B. Π xs: List ·A. \{len xs ≃ len (map f xs)\} = <..>
 v2lPresLen: ∀ A: ★. ∀ n: Nat. Π xs: Vec ·A n. \{n ≃ len (v2l! -n xs)\} = <..>
@@ -958,423 +971,408 @@ between \texttt{zero} and \texttt{nil} holds definitionally, but is not possible
 \texttt{suc} and \texttt{cons}. The very same phenomenon occurs for e.g.
 Church-encoded numbers and lists.
 
+\newpage
 \section{Syntax}
 \label{sec:syntax}
 
-\paragraph{Identifiers}
+We now turn to a more formal treatment of Cedille's datatype system. We begin by
+describing the syntax, where for completeness we present many of the same
+constructs described in \cite{St18_Cedille-Syntax-Semantics}. Figure
+\ref{fig:identifiers} shows the different grammatical categories of identifiers:
+the two new additions are $c$ (constructor names) and $D$ (datatype names).
+
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      id & &
-      & \textnormal{identifiers for definitions}
-      \\ u & &
+      \\ a,u,x,y,z &
       & \textnormal{term variables}
-      \\ c & &
-      & \text{constructors}
-      \\ X,Y,Z,R & &
+      \\ X,Y,Z,R & 
       & \textnormal{type variables}
-      \\ 𝒌 & &
-      & \textnormal{kind variables}
-      \\ x & ::= & id\ |\ u\ |\ X\
-      & \textnormal{non-kind variables}
-      \\ y & ::= & x\ |\ 𝒌 & \text{all variables}
+      \\ 𝒌 &
+      & \text{kind variables}
+      \\ c & 
+      & \text{constructors}
+      \\ D &
+      & \textnormal{datatype names}
     \end{array}
   \]
   \caption{Identifiers}
   \label{fig:identifiers}
 \end{figure}
 
-We now turn to a more formal treatment of Cedilleum. Figure
-\ref{fig:identifiers} gives the metavariables used in our grammar for
-identifiers. For convenience we consider all identifiers as coming from two
-distinct lexical ``pools'' -- regular identifiers (consisting of identifiers
-$id$ given for modules and definitions, term variables $u$, and type variables
-$X$) and kind identifiers $\kappa$. In Cedilleum source files (as in the parent
-language Cedille) kind variables should be literally prefixed with $\kappa$ --
-the suffix can be any string that would by itself be a legal non-kind
-identifier. For example, \texttt{myDef} is only legal as term and type
-identifier, and \texttt{𝒌myDeff} is only legal as a kind identifier.
-
-\paragraph{Untyped Terms}
+In Figure \ref{fig:pure-terms} we extend the syntax of pure (erased) terms in
+Cedille with constructors, recursive definitions (μ) and case analysis (μ'). For
+convenience we also introduce an auxiliary category of sequences of expressions
+$\vars{s}$, used for (among other things) describing the sequence of variables
+bound by constructor patterns in μ and μ' expressions. (The notation using $i$ ranging
+over $1..n$ (for some $n$) is explained below.)
+ 
 \begin{figure}[h]
   \[
     \begin{array}{llll}
-      f, p
-      & ::= & u,v
+      p
+      & ::= & x
       & \text{variables}
-      \\ & & \absu{\textbf{λ}}{u}{p}
+      \\ & & \absu{λ}{u}{p}
       & \text{functions}
       \\ & & c
       & \text{constructors}
-      \\ & & f\ p
+      \\ & & p\ p'
       & \text{applications}
-      \\ & & \mufix{u}{p}{c_i\ \vars{a_i} ➔ p_i}_{i=1..n}
+      \\ & & \mufixu{u}{p}{c_i\ \vars{a_i} ➔ p_i}_{i=1..n}
       & \text{recursive definitions}
-      \\ & & \mumat{p}{c_i\ \vars{a_i} ➔ p_i}_{i=1..n}
+      \\ & & \mumatu{p}{c_i\ \vars{a_i} ➔ p_i}_{i=1..n}
       & \text{case analysis}
+      \\ \vars{s}
+      & ::= & \emptyset\ |\ s\ \vars{s}
     \end{array}
   \]
   \caption{Untyped terms}
   \label{fig:pure-terms}
 \end{figure}
 
-The grammar of pure (untyped) terms that of the untyped λ-calculus augmented
-with primitive μ for combined pattern-matching and fixpoint recursion and μ' for
-``mere'' pattern-matching.
+\begin{figure}[h!]
+  \[
+    \begin{array}{rlll}
+      \text{Kinds } K
+      & ::= & ★
+      & \text{the kind of types that classify terms}
+      \\ & & \abs{Π}{X}{K}{K'}
+      & \textnormal{product over types}
+      \\ & & \abs{Π}{x}{T}{K}
+      & \text{product over terms}
+      \\
+      \\ \text{Types } S,T,P
+      & ::= & X
+      & \text{type variables}
+      \\ & & \abs{Π}{x}{S}{T}
+      & \text{product over terms}
+      \\ & & \abs{∀}{x}{S}{T}
+      & \text{implicit product over terms}
+      \\ & & \abs{∀}{X}{K}{T}
+      & \text{implicit product over types}
+      \\ & & \abs{λ}{x}{S}{T}
+      & \text{term-to-type function}
+      \\ & & \abs{λ}{X}{K}{T}
+      & \text{type-to-type function}
+      \\ & & T\ t
+      & \text{type-to-term application}
+      \\ & & T\ ·S
+      & \text{type-to-type application}
+      \\ & & \abs{ι}{x}{T}{T'}
+      & \text{Dependent intersection}
+      \\ & & \{p_1 ≃ p_2\}
+      & \text{Equality of untyped terms}
+      \\ & & D
+      & \text{datatypes}
+      \\
+      \\ \text{Classifiers}\ A
+      & ::= & T\ |\ K &
+      \\
+      \\ \text{Terms } s,t
+      & ::= & x
+      & \text{variables}
+      \\ & & \absu{λ}{x}{t}
+      & \textnormal{term abstraction}
+      \\ & & \absu{Λ}{x}{t}
+      & \textnormal{erased term abstraction}
+      \\ & & \absu{Λ}{X}{t}
+      & \text{type abstraction}
+      \\ & & t\ s
+      & \text{term application}
+      \\ & & t\ \mhyph s
+      & \text{erased term application}
+      \\ & & t ·T
+      & \text{type application}
+      \\ & & [t,s]
+      & \text{intro dependent intersection}
+      \\ & & t.1
+      & \text{dep. intersection left projection}
+      \\ & & t.2
+      & \text{dep. intersection right projection}
+      \\ & & β
+      & \text{reflexivity of equality}
+      \\ & & ρ\ t\ @ x.T\ - s
+      & \text{rewrite by equality}
+      \\ & & \varphi\ t - t_1\ \{t_2\}
+      & \text{cast by equality}
+      \\ & & δ\ T - t
+      & \text{anything by absurd equality}
+      \\ & & c
+      & \text{data constructors}
+      \\ & & \mufix{x}{t}{P}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}
+      & \text{recursive def. over datatype}
+      \\ & & \mumat{x}{t}{P}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}
+      & \text{case analysis over datatype}
+      \\
+      \\ \text{Argument Sequence } \vars{s}
+      & ::= & \emptyset\ |\ s\ \vars{s}\ |\ ·S\ \vars{s}\ |\ \mhyph s\ \vars{s}
+      & \text{for constructor patterns and applications}
+    \end{array}
+  \]
+  \caption{Syntax for Cedille kinds, types, terms}
+  \label{fig:cedille-syntax}
+\end{figure}
 
-\begin{figure}[h]
+Figure \ref{fig:cedille-syntax} lists the full syntax of annotated expressions
+in Cedille (kinds, types, and terms). The datatype system
+adds datatype names $D$, μ and μ'-expressions, and argument sequences. We
+explain μ- and μ'-expressions in more detail:
+
+\begin{itemize}
+\item \(\mufix{x}{t}{P}{c_i\ \vars{a_i}}_{i=1..n}\)
+
+  $x$ is the name of the recursive expression being defined by the μ-expression,
+  in scope of the body (delimited by curly braces).
+
+  $t$ is the scrutinee: the expression which is being pattern-matched upon and
+  whose subdata will be legal arguments for recursion using $x$. It must have a
+  concrete datatype
+
+  $@P$ is the guide. $P$ must be a type-level λ-expression abstracting over a
+  datatype and its indices and returning a type.
+  
+  $c_i\ \vars{a_i} ➔ t_i$ where $i=1..n$, describes a case tree -- a collection
+  of $n$ constructor patterns (constructors $c_i$ applied to variable arguments $\vars{a_i}$)
+  associated with expressions ($t_i$) within which the constructor variable
+  arguments are bound
+\item \(\mumat{x}{t}{P}{c_i\ \vars{a_i}}_{i=1..n}\)
+
+  $x$ is the witness that the scrutinee has a type legal for CoV pattern
+  matching
+
+  $t$ is the scrutinee
+
+  $@P$ is the guide, similar to above
+
+  $c_i\ \vars{a_i} ➔ t_i$ where $i=1..n$, is a case tree as above
+\end{itemize}
+
+Figure \ref{fig:contexts} lists the syntax for typing contexts. The construct
+\(\indeli{D}{\Gamma\splab{P}}{\Gamma\splab{I}}{R}{\Delta}{\Theta}{\mathcal{E}}\) is explained in more detail in a
+later section; for now it suffices to say it is the internal representation of a
+declared datatype $D$ with parameters $\Gamma\splab{P}$ and indices
+$\Gamma\splab{I}$, constructors bound in context $\Delta$, CoV globals in
+$\Theta$, and elaborations in $\mathcal{E}$.
+
+\begin{figure}[htbp!]
   \[
     \begin{array}{llll}
-      % module stuff
-      \\ mod
-      & ::= & \textbf{module}\ id\ \textbf{.}\ imprt^*\ cmd^*\
-      & \textnormal{module declarations}
-      \\ imprt
-      & ::= & \textbf{import}\ id\ \textbf{.}
-      & \textnormal{module imports}
-      \\ cmd
-      & ::= & defTermOrType
-      & \textnormal{definitions}
-      \\ & & defDataType
-      \\ & & defKind
-      % definitions
-      \\ 
-      \\ defTermOrType
-      & ::= & id\ checkType^?\ \textbf{=}\ t\ \textbf{.}
-      & \textnormal{term definition}
-      \\ & & id\ \textbf{:}\ K\ \textbf{=}\ T\ \textbf{.}
-      & \textnormal{type definition}
-      \\ defKind
-      & ::= & 𝒌\ \textbf{=}\ K
-      & \text{kind definition}
-      \\ defDataType
-      & ::= & \textbf{data}\ id\ param^*\ \textbf{:}\ K\ \textbf{=}\
-              constr^*\ \textbf{.}
-      & \textnormal{datatype definitions}
-     % auxilliary categories for definitions
-      \\ 
-      \\ checkType
-      & ::= & \textbf{:}\ T
-      & \textnormal{annotation for term definition}
-      \\ param
-      & ::= & \textbf{(}x\ \textbf{:}\ C \textbf{)}
-      \\ constr
-      & ::= & \textbf{\textbar}\ id\ \textbf{:}\ T
+      \text{ Typing contexts } \Gamma
+      & ::= & \emptyset\ |\ \Gamma,\ann{x}{T}\ %
+      % |\ \ann{\mhyph x}{T},\Gamma\ 
+      % |\ \ann{x = t}{T},\Gamma\ %|\ \ann{\mhyph x = t}{T},\Gamma\ 
+              |\ \Gamma,\ann{X}{K}\
+              % |\ \ann{X=T}{K},\Gamma\ 
+              |\ \Gamma,\indeli{D}{\Gamma\splab{P}}{\Gamma\splab{I}}{R}{\Delta}{\Theta}{\mathcal{E}}
     \end{array}
   \]
-  \caption{Modules and definitions}
-  \label{fig:mods-defs}
+  \caption{Contexts}
+  \label{fig:contexts}
 \end{figure}
 
-\paragraph{Modules and Definitions}
-All Cedilleum source files start with production $mod$, which consists of a module
-declaration, a sequence of import statements which bring into scope definitions
-from other source files, and a sequence of \textit{commands} defining terms,
-types, and kinds. As an illustration, consider the first few lines of a
-hypothetical \texttt{list.ced}:
+The syntax for datatype declarations is as expected, and given in Figure \ref{fig:datatype-decl-syntax}
+\begin{alltt}
+data \(D\) \((\Gamma\splab{P})\): \(K\) =
+  | \(c\sb{1}\) : \(T\sb{1}\)
+  | \(...\)
+  | \(c\sb{n}\) : \(T\sb{n}\).
+\end{alltt}
+\begin{itemize}
+\item $D$, the datatype name
+\item $\Gamma\splab{P}$, the context of parameters. Each identifier-classifier
+  pair is separated by parenthesis
+\item $K$ the index-sort of the datatype
+\item \texttt{$c_i$ : $T_i$} ($i=1..n$), the constructors and their types. Elsewhere we will
+  enforce that each $T_i$ have a valid type for being a constructor of datatype $D$
+\end{itemize}
 
-\begin{verbatim}
-module list .
+\newpage
+\section{Erasure}
 
-import nat .
-\end{verbatim}
-% TODO it also searches all ancestor directories
-\noindent Imports are handled first by consulting a global options files
-known to the Cedilleum compiler (on *nix systems \verb|~/.cedille/options|)
-containing a search path of directories, and next (if that fails) by searching
-the directory containing the file being checked.
-
-Term and type definitions are given with an identifier, a classifier (type or
-kind, resp.) to check the definition against, and the definition. For term
-definitions, giving classifier (i.e. the type) is optional. As an example,
-consider the definitions for the type of Church-encoded lists and two variants
-of the nil constructor, the first with a top-level type annotation and the
-second with annotations sprinkled on binders:
-
-\begin{verbatim}
-cList : ★ ➔ ★
-      = λ A : ★ . ∀ X : ★ . (A ➔ X ➔ X) ➔ X ➔ X .
-
-cNil  : ∀ A : ★ . cList · A
-      = Λ A . Λ X . λ c . λ n . n .
-cNil' = Λ A : ★ . Λ X : ★ . λ c : A ➔ X ➔ X . λ n : X . n .
-\end{verbatim}
-
-Kind definitions are given without classifiers (all kinds have super-kind
-$\Box$), e.g. \verb;𝒌func = ★ ➔ ★;
-
-Inductive datatype definitions take a set of \textit{parameters} (term and type
-variables which remain constant throughout the definition) well as a set of
-\textit{indices} (term and type variables which can vary in constructor type
-signatures), followed by zero or more constructors. Each constructor begins with
-``\textbf{\textbar}'' (though the grammar can be relaxed so that the first of
-these is optional) and then an identifier and type is given. As an example,
-consider the following two definitions for lists and vectors (length-indexed
-lists).
-
-\begin{verbatim}
-data Bool : ★ =
-  | tt : Bool
-  | ff : Bool
-  .
-data Nat : ★ =
-  | zero : Nat
-  | suc  : Nat ➔ Nat
-  .
-data List (A : ★) : ★ =
-  | nil  : List
-  | cons : A ➔ List ➔ List
-  .
-data Vec (A : ★) : Nat ➔ ★ =
-  | vnil  : Vec zero
-  | vcons : ∀ n: Nat. A ➔ Vec n ➔ Vec (succ n)
-  .
-\end{verbatim}
-
-\paragraph{Types and Kinds}
-\begin{figure}[h]
-  \[
-    \begin{array}{rlll}
-      \text{Sorts } \mathcal{S}
-      & ::= & \square & \text{sole super-kind}
-      \\ & & K & \text{kinds}
-      \\ \text{Classifiers } C
-      & ::= & K & \text{kinds}
-      \\ & & T & \text{types}
-      \\ \text{Kinds } K
-      & ::= & \textbf{Π}\ x\ \textbf{:}\ C\ \textbf{.}\ K
-      & \textnormal{explicit product}
-      \\ & & C\ \textbf{➔}\ K
-      & \textnormal{kind arrow}
-      \\ & & \textbf{★}
-      & \text{the kind of types that classify terms}
-      \\ 
-      \\ \text{Types } S,T,P
-      & ::= & \textbf{Π}\ x\ \textbf{:}\ T\ \textbf{.}\ T'
-         & \textnormal{explicit product}
-      \\ & &  \textbf{∀}\ x\ \textbf{:}\ C\ \textbf{.}\ T'
-         & \textnormal{implicit product}
-      \\ & &  \textbf{λ}\ x\ \textbf{:}\ C\ \textbf{.}\ T'
-         & \textnormal{type-level function}
-      \\ & & T\ \textbf{➾}\ T'
-         & \textnormal{arrow with erased domain}
-      \\ & & T\ \textbf{➔}\ T'
-         & \textnormal{normal arrow type}
-      \\ & & T\ \textbf{·}\ T'
-         & \text{application to another type}
-      \\ & & T\ t
-         & \text{application to a term}
-      \\ & & \textbf{\{}\ p\ ≃\ p' \textbf{\}}
-                      & \textnormal{untyped equality}
-      % \\ & & \textbf{ι}\ x: T.\ T'
-      %                 & \textnormal {dependent intersection}
-      \\ & & X
-         & \text{type variable}
-    \end{array}
-  \]
-  \caption{Kinds and types}
-  \label{fig:kinds-types}
-\end{figure}
-
-In Cedilleum, the expression language is stratified into three main ``classes'':
-kinds, types, and terms. Kinds and types are listed in Figure
-\ref{fig:kinds-types} and terms are listed in Figure \ref{fig:ann-terms} along
-with some auxiliary grammatical categories. In both of these figures, the
-constructs forming expressions are listed from lowest to highest precedence --
-``abstractors'' ($\lambda\ \Lambda\ \Pi\ \forall$) bind most loosely and
-parentheses most tightly. Associativity is as-expected, with arrows (➔ ➾) and
-abstractors being right-associative and applications being left-associative.
-
-% TODO cite
-The language of kinds and types is similar to that found in the Calculus of
-Implicit Constructions\footnote{Cite}. Kinds are formed by dependent and
-non-dependent products (Π and ➔) and a base kind for types which can classify
-terms (★). Types are also formed by the usual (dependent and non-dependent)
-products (Π and ➔) and also \textit{implicit} products (∀ and ➾) which quantify
-over erased arguments (that is, arguments that disappear at run-time).
-Π-products are only allowed to quantify over terms as all types occurring in
-terms are erased at run-time, but ∀-products can quantify over types
-\textit{and} terms because terms can be erased. Meanwhile, non-dependent
-products (➔ and ➾) can only ``quantify'' over terms because non-dependent type
-quantification does not seem particularly useful. Besides these, Cedilleum
-features type-level functions and applications (with term and type arguments),
-and a primitive equality type for untyped terms. Last of all is the ``hole''
-type (●) for writing partial type signatures or incomplete type applications.
-There are term-level holes as well, and together the two are intended to help
-facilitate ``hole-driven development'': any hole automatically generates a type
-error and provides the user with useful contextual information.
-
-We illustrate with another example: what follows is a module stub for
-\textbf{DepCast} defining dependent casts -- intuitively, functions from $a : A$
-to $B\ a$ that are also equal\footnote{Module erasure, discussed below} to
-identity -- where the definitions \texttt{CastE} and \texttt{castE} are
-incomplete.
-
-\begin{verbatim}
-module DepCast .
-
-CastE ◂ Π A : ★ . (A ➔ ★) ➔ ★ = ● .
-castE ◂ ∀ A : ★ . ∀ B : A ➔ ★ . CastE · A · B ➾ Π a : A . B a = ● .
-\end{verbatim}
-  
-\paragraph{Annotated Terms}
-\begin{figure}[h]
-  \[
-    \begin{array}{rlll}
-      \text{Subjects } s
-      & ::= & t & \text{term}
-      \\ & & T & \text{type}
-      \\ \text{Terms } t
-      & ::= & \absu{λ}{x}{t}
-      & \textnormal{normal abstraction}
-      \\ & & \absu{Λ}{x}{t}
-      & \textnormal{erased abstraction}
-      \\ & & \textbf{[}\ defTermOrType\ \textbf{]}\ \textbf{-}\ t
-      & \text{let definitions}
-      \\ & & \textbf{ρ}\ t\ @ x.T\ \textbf{-}\ t'
-      & \text{equality elimination by rewriting}
-      \\ & & \varphi\ t\ \textbf{-}\ t'\ \textbf{\{} t'' \textbf{\}}
-      & \text{type cast}
-      \\ & & \textbf{χ}\ T\ \textbf{-}\ t
-      & \text{check a term against a type}
-      \\ & & \textbf{δ}\ \textbf{-}\ t
-      & \text{ex falso quodlibet}
-      \\ & & t\ t'
-      & \text{applications}
-      \\ & & t\ \textbf{-}t'
-      & \text{application to an erased term}
-      \\ & & t\ \textbf{·}T
-      & \text{application to a type}
-      \\ & & \textbf{β}\ 
-      & \textnormal{reflexivity of equality}
-      \\ & & \mufix{u}{t\ @P}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}
-      & \textnormal{recursive definitions}
-      \\ & & \mumat{t\ @P}{case^*}
-      & \text{auxiliary pattern match}
-      \\ & & u
-      & \text{term variable}
-      \\ & & \textbf{(}t\textbf{)}
-      \\ & & \bullet
-      \\ \\ case
-      & ::= & \textbf{\textbar}\ c\ vararg^*\ \textbf{↦}\ t
-      & \text{pattern-matching cases}
-      \\ vararg
-      & ::= & u
-      & \text{normal constructor argument}
-      \\ & & \textbf{-}u
-      & \text{erased constructor argument}
-      \\ & & \textbf{·}X
-      & \text{type constructor argument}
-      \\ class
-      & ::= & \textbf{:}\ C
-      \\ motive
-      & ::= & \textbf{@}\ T
-      & \textnormal{motive for induction}
-    \end{array}
-  \]
-  \caption{Annotated Terms}
-  \label{fig:ann-terms}
-\end{figure}
-
-Terms can be explicit and implicit functions (resp. indicated by λ and Λ) with
-optional classifiers for bound variables, let-bindings, applications $t\ t'$,
-$t\ \mhyph t'$, and $t\ \cdot T$ (resp. to another term, an erased term, or a
-type). In addition to this there are a number of useful operators for
-equaltional reasoning, type casting, providing annotations, and pattern
-matching. Each operator will be discussed in more detail in Section
-\ref{sec:type-system}, but a few concrete programs in Cedilleum are given below
-merely to give a better idea of the syntax of the language.
-
-\begin{verbatim}
-isvnil : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ Bool
-       = Λ A. Λ n. λ xs. μ' xs @(Λ n . λ xs . Bool) {
-           | vnil          ↦ tt
-           | vcons -n x xs ↦ ff
-           }.
-vlength : ∀ A: ★. ∀ n: Nat. Vec ·A n ➔ Nat
-        = Λ A. Λ n. λ xs. μ len . xs @(Λ n . λ x . Nat) {
-            | vnil          ↦ zero
-            | vcons -n x xs ↦ suc (len -n xs)
-            }.
-\end{verbatim}
-
-\section{Erasure and Reduction}
-
-\begin{figure}[h]
+\begin{figure}[htbp!]
   \[
   \begin{array}{lll}
        |x| & = & x 
     \\ |\star| & = & \star 
-    \\ |\Box| & = & \Box 
-    \\ |\beta\ \{t\}| & = & |t|
-    \\ |\delta\ t| & = & |t|
-    \\ |\chi\ T^? \textbf{-}\ t| & = & |t| 
-    \\ |\varsigma\ t| & = & |t|
-    \\ |t\ t'| & = & |t|\ |t'|
-    \\ |t\ \mhyph t'| & = & |t| 
-    \\ |t\ \cdot T| & = & |t| 
-    \\ |\rho\ t\ \mhyph\ t'| & = & |t'| 
-    \\ |\abs{\forall}{x}{C}{C'}| & = & \abs{\forall}{x}{|C|}{|C'|}
-    \\ |\abs{\Pi}{x}{C}{C'}| & = & \abs{\Pi}{x}{|C|}{|C'|}
-    \\ |\abs{\lambda}{u}{T}{t}| & = &  \absu{\lambda}{u}{|t|} 
-    \\ |\absu{\lambda}{u}{t}| & = &  \absu{\lambda}{u}{|t|} 
-    \\ |\abs{\lambda}{X}{K}{C}| & = &  \abs{\lambda}{X}{|K|}{|C|} 
-    \\ |\abs{\Lambda}{x}{C}{t}| & = &  |t| 
-    \\ |\phi\ t\ \mhyph\ t'\ \{t''\}| & = & |t''| 
-    \\ |[ x = t : T]|\ \mhyph\ t' | & = & (\absu{\lambda}{x}{|t'|})\ |t|
-    \\ |[X = T : K]\ \mhyph\ t | & = & |t| 
     \\ |\{ t \simeq t' \}|| & = & \{ |t| \simeq |t'| \}
-    \\ |\mufix{u,}{t\ motive^?}{case^*}|
-           & = & \mufix{u}{|t|}{|case^*|}
-    \\ |\mumat{t\ motive^?}{case^*}|
-           & = & \mumat{|t|}{|case^*|}
-    \\ \\ |id\ vararg^* \mapsto t| & = & id\ |vararg^*|\ \mapsto |t|
-    \\ 
-    \\ |\mhyph u| & = & 
-    \\ |\cdot X|  & = &
+    \\ |\beta|\  & = & \absu{λ}{x}{x}
+    \\ |\delta\ T - t| & = & |t|
+    \\ |\varphi\ t\ \mhyph\ t'\ \{t''\}| & = & |t''| 
+    \\ |\rho\ t'\ @\ x.T\ \mhyph\ t| & = & |t|
+    \\ |\abs{ι}{x}{T}{T'}| & = & \abs{ι}{x}{|T|}{|T'|}
+    \\ |[ t , t' ]| & = & |t|
+    \\ |t.1| & = & |t|
+    \\ |t.2| & = & |t|
+    \\ |\abs{Π}{x}{T}{T'}| & = & \abs{Π}{x}{|T|}{|T'|}
+    \\ |\absu{\lambda}{x}{t}| & = &  \absu{\lambda}{x}{|t|} 
+    \\ |t\ t'| & = & |t|\ |t'|
+    \\ |\abs{∀}{x}{T}{T'}| & = & \abs{∀}{x}{|T|}{|T'|}
+    \\ |\abs{\Lambda}{x}{T}{t}| & = &  |t| 
+    \\ |t\ \mhyph t'| & = & |t|
+    \\ |\abs{∀}{X}{K}{T}| & = & \abs{∀}{X}{|K|}{|T|}
+    \\ |\abs{\Lambda}{X}{K}{t}| & = &  |t| 
+    \\ |t\ \cdot T| & = & |t|
+    \\ |\abs{\Pi}{x}{T}{K}| & = & \abs{\Pi}{x}{|T|}{|K|}
+    \\ |\abs{\lambda}{x}{T}{T'}| & = &  \abs{\lambda}{x}{|T|}{|T'|}
+    \\ |T\ t| & = & |T|\ |t|
+    \\ |\abs{\Pi}{X}{K}{K'}| & = & \abs{\Pi}{X}{|K|}{|K'|}
+    \\ |\abs{\lambda}{X}{K}{T}| & = &  \abs{\lambda}{X}{|K|}{|T|}
+    \\ |T ·T'| & = & |T| ·|T'|
+    \\ |c| & = & c
+    \\ |\mufix{u}{t}{P}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}|
+           & = & \mufixu{u}{|t|}{c_i\ \vars{|a_i|} ➔ |t_i|}_{i=1..n}
+    \\ |\mumat{u}{t}{P}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}|
+           & = & \mumatu{|t|}{c_i\ \vars{|a_i|} ➔ |t_i|}_{i=1..n}
+    \\
+    \\ |\varnothing| & = & \varnothing
+    \\ |s\ \vars{s}| & = & s\ |\vars{s}|
+    \\ |\mhyph s\ \vars{s}| & = & |\vars{s}|
+    \\ |·S\ \vars{s}| & = & |\vars{s}|
   \end{array}
   \]
   \caption{Erasure for annotated terms}
-  \label{fig:eraser}
+  \label{fig:erasure}
 \end{figure}
 
-The definition of the erasure function given in Figure \ref{fig:eraser} takes
-the annotated terms from Figures \ref{fig:kinds-types} and \ref{fig:ann-terms}
-to the untyped terms of Figure \ref{fig:pure-terms}. The last two equations
-indicate how the sequence of variables ($varargs$) bound by a constructor
-pattern are erased. The additional constructs introduced in the annotated term
-language such as β, φ, and ρ, are also all erased to the language of pure terms.
+The definition of the erasure function given in Figure \ref{fig:erasure} takes
+the annotated terms from Figures \ref{fig:cedille-syntax} 
+to the untyped terms of Figure \ref{fig:pure-terms}. Specifically, for the new datatype
+constructs:
+\begin{itemize}
+\item in μ-expressions, the guide $@P$ is erased;
+\item in μ'-expressions, the witness $u$ and guide $@P$ are erased;
+\item in the case trees of both, argument sequences are erased (type and
+  implicit term variables bound in constructor patterns are erased);
+\end{itemize}
 
-Reduction rules are defined for the untyped term language. In essence, to run a
-Cedilleum program you first erase it, then reduce it. Full conversion in
-Cedilleum is defined as the compatible closure of $\reduce\ =\ \reduce_{\beta}
-\bigcup \reduce_{\mu'} \bigcup \reduce_{\mu}$
+\section{Convertibility}
+\begin{figure}[h]
+  \[
+    \begin{array}{cc}
+      \infer{
+      \mumatu{(c_j\ \vars{s})}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}
+      \reduce \vars{[s/a_j]}t_j
+      }{
+      1 \le j \le n \quad \#\vars{s} = \#\vars{a_j}
+      }
+      &
+        \infer{
+        \mufixu{x}{(c_j\ \vars{s})}{c_i\ \vars{a_i} ➔ t_i}_{i=1..n}
+        \reduce \vars{[s/a_j]}[t\splab{rec}/x]t_j
+        }{
+        1 \le j \le n \quad \#\vars{s} = \#\vars{a_j}
+        \quad t\splab{rec} = \absu{λ}{y}{\mufixu{x}{y}{c_i\ \vars{a_i}
+        ➔ t_i}_{i=1..n}}
+        }
+    \end{array}
+  \]
+  \caption{Reduction rules for μ and μ'}
+  \label{fig:mu-reduction}
+\end{figure}
 
-\paragraph{$\beta$-reduction}
-\[ (\absu{\lambda}{x}{p_1})\ p_2 \reduce_{\beta} [p_2/x]p_1 \]
+\begin{figure}[h]
+  \[
+    \begin{array}{cc}
+      \infer{
+      \Gamma \vdash c_j \cong c_{k}{'}
+      }{
+      \begin{array}{cc}
+        \indeli{D}{R}{\Gamma\splab{P}}{\Gamma\splab{I}}{\Delta}{\Theta}{\mathcal{E}} \in \Gamma
+        & \ann{c_j}{\absu{\piforall}{\vars{\ann{a_j}{A_j}}}{T}} \in \Delta
+        \\ \indeli{D'}{R}{\Gamma\splab{P}{'}}{\Gamma\splab{I}{'}}{\Delta'}{\Theta'}{\mathcal{E'}} \in \Gamma
+        & \ann{c_{k}{'}}{\absu{\piforall}{\vars{\ann{a_{k}}{A_{k}{'}}}}{T'}} \in \Delta'
+        \\ [2pt]
+        j = k, \#\Delta = \#\Delta'
+        & \#|\vars{a_{j}}| = \#|\vars{a_{k}}|
+      \end{array}
+          }
+        &
+          \infer{
+          \Gamma \vdash \texttt{to/}D \cong \absu{λ}{x}{x}
+          }{
+          \indeli{D}{\Gamma\splab{P}}{\Gamma\splab{I}}{R}{\Delta}{\Theta}{\mathcal{E}} \in \Gamma
+          \quad \texttt{to/}D \in \Theta
+          }
+    \end{array}
+  \]
+  \caption{Extension of definitional equality for data declarations}
+  \label{fig:convert-data-decl}
+\end{figure}
 
-The rule for $\beta$-reduction is standard: those expressions consisting of a
-$\lambda$-abstraction as the left component of an application reduce by having
-their bound variable substituted away by the given argument (where $[p_2/x]$ is
-the simultaneous and capture-avoiding substitution of $p_2$ for $x$)
+\paragraph{Notation}
+In Figures \ref{fig:mu-reduction} and \ref{fig:convert-data-decl}, a metavariable $c$ denotes a datatype
+constructor, $\vars{s}$ a sequence of type and (mixed-erasure) term arguments,
+$\vars{a}$ a sequence of type and (mixed-erasure) term variables bound by
+pattern guards, $\#\vars{s}$ the length of $\vars{s}$, \(\{\ c_i\ \vars{a_i} ➔
+t_i\}_{i=1..n}\) a collection of $n$ branches guarded by patterns $c_i\
+\vars{a_i}$ with bodies $t_i$, $|\vars{a}|$ the erasure of type and erased-term
+variables in the sequence $\vars{a}$, and $\vars{[s/a]}$ the simultaneous and
+capture-avoiding substitution of terms and types $\vars{s}$ for variables $\vars{a}$.
 
-\paragraph{$\mu'$-reduction}
-\[ \mu'\ (c_i\ p_1 ... p_n)\ \{...\ | c_i\ u_1 ... u_n \mapsto f\ |...\}
-  \reduce_{\mu'} [p_1 ... p_n/u_1 ... u_n]f\]
+The convertibility relation $\cong$ for types is the relation described in 
+\cite{St18_Cedille-Syntax-Semantics} with term convertibility augmented with these rules.
 
-$\mu'$-reduction is a simple pattern-matching reduction rule: if the scrutinee
-of $\mu'$ is some variable-headed application $c_i\ p_1 ... p_n$ where the head
-$c_i$ matches one of the branch patterns, replace the entire expression with the
-branch body $f$ after substituting each of the bound variables of the branch
-pattern $u_1 ... u_n$ with the scrutinee's arguments $p_1 ... p_n$
+\paragraph{μ' reduction}
+The first rule of Figure \ref{fig:mu-reduction} is μ'-reduction, which is simply case
+branch selection: if the scrutinee is some constructor $c_j$ applied to
+arguments $\vars{s}$, and the case tree lists $c_j$ applied to the same number of
+(variable) arguments $\vars{a_j}$, the corresponding expression $t_j$ of that branch is
+selected with constructor arguments $\vars{s}$ replacing variables $\vars{a_j}$
 
-\paragraph{$\mu$-reduction}
-\[
-  \mu\ u. (c_k\ \vars{t})\ \{ c_i\ \vars{x_i} \mapsto f_i\}_{i=1..n} \reduce_{\mu}
-  [p_{\mu}/u][\vars{t/x_k}]\ f_k\
-\]
-\noindent where $p_{\mu} = \absu{\lambda}{v}{\mu\ u. v \{c_i\ \vars{x_i} \mapsto f_i\}_{i=1..n}}$
-\\ 
+\paragraph{μ reduction}
+The second rule of Figure \ref{fig:mu-reduction} is μ-reduction, a combination
+of case branch selection and fixpoint unrolling. The fixpoint unrolling is done
+by binding term meta-variable $t\splab{rec}$ to a λ-expression that takes an
+argument $y$ and makes it the scrutinee of another μ-expression, with the same
+case branches as before. $t\splab{rec}$ replaces the μ-bound variable $x$ in the
+selected case branch $t_j$.
+
+\paragraph{Constructor convertibility}
+The first rule of Figure \ref{fig:convert-data-decl} shows how Cedille
+determines whether two constructors are convertible.
+\begin{itemize}
+\item The constructors must be associated with a datatypes $D$ and $D'$ declared
+  in $\Gamma$
+\item They must have the same entry ($j = k$) in their respective constructor
+  lists, and these lists must be equal in length $\#\Delta = \#\Delta'$
+\item They must take the same number of unerased arguments
+\end{itemize}
+
+\paragraph{Coercion convertibility}
+Any coercion $\texttt{to}/D$ bound by a datatype declaration is convertible with
+\(\absu{λ}{x}{x}\).
+
+% Reduction rules are defined for the untyped term language. In essence, to run a
+% Cedilleum program you first erase it, then reduce it. Full conversion in
+% Cedilleum is defined as the compatible closure of $\reduce\ =\ \reduce_{\beta}
+% \bigcup \reduce_{\mu'} \bigcup \reduce_{\mu}$
+
+% \paragraph{$\beta$-reduction}
+% \[ (\absu{\lambda}{x}{p_1})\ p_2 \reduce_{\beta} [p_2/x]p_1 \]
+
+% The rule for $\beta$-reduction is standard: those expressions consisting of a
+% $\lambda$-abstraction as the left component of an application reduce by having
+% their bound variable substituted away by the given argument (where $[p_2/x]$ is
+% the simultaneous and capture-avoiding substitution of $p_2$ for $x$)
+
+% \paragraph{$\mu'$-reduction}
+% \[ \mu'\ (c_i\ p_1 ... p_n)\ \{...\ | c_i\ u_1 ... u_n \mapsto f\ |...\}
+%   \reduce_{\mu'} [p_1 ... p_n/u_1 ... u_n]f\]
+
+% $\mu'$-reduction is a simple pattern-matching reduction rule: if the scrutinee
+% of $\mu'$ is some variable-headed application $c_i\ p_1 ... p_n$ where the head
+% $c_i$ matches one of the branch patterns, replace the entire expression with the
+% branch body $f$ after substituting each of the bound variables of the branch
+% pattern $u_1 ... u_n$ with the scrutinee's arguments $p_1 ... p_n$
+
+% \paragraph{$\mu$-reduction}
+% \[
+%   \mu\ u. (c_k\ \vars{t})\ \{ c_i\ \vars{x_i} \mapsto f_i\}_{i=1..n} \reduce_{\mu}
+%   [p_{\mu}/u][\vars{t/x_k}]\ f_k\
+% \]
+% \noindent where $p_{\mu} = \absu{\lambda}{v}{\mu\ u. v \{c_i\ \vars{x_i} \mapsto f_i\}_{i=1..n}}$
+% \\ 
 % \[ \infer[\mu]
 %   { \mu\ u. (c\ p_1 ... p_n)\ \{ c_i\ u_{i1} ... u_{ij_i} \mapsto f_i
 %     \}_{i=1..n} \reduce_{\mu} [p_1 ... p_n/u_1 ... u_n][u/p_{\mu}]f}
@@ -1385,188 +1383,381 @@ pattern $u_1 ... u_n$ with the scrutinee's arguments $p_1 ... p_n$
 %   }
 % \]
 
-$\mu$-reduction is similar to $\mu'$-reduction, but combines with it fixpoint
-reduction. Again, if the scrutinee $c\ p_1 ... p_n$ matches one of the branch
-patterns $c_i\ u_{i1} ... u_{ij_i}$ (for some $i$, where $j_i = n$), then we
-replace the original $\mu$ expression with the matched branch, replacing each of
-the pattern variables $u_1 ... u_n$ with the scrutinee's arguments $p_1 ...
-p_n$, but \textit{in addition} we also replace the $\mu$-bound variable $u$
-(which represents the entire $\mu$ expression itself) with a function $p_\mu$
-that takes its argument $v$ and re-creates the original $\mu$ expression by
-scrutinizing $v$.
+% $\mu$-reduction is similar to $\mu'$-reduction, but combines with it fixpoint
+% reduction. Again, if the scrutinee $c\ p_1 ... p_n$ matches one of the branch
+% patterns $c_i\ u_{i1} ... u_{ij_i}$ (for some $i$, where $j_i = n$), then we
+% replace the original $\mu$ expression with the matched branch, replacing each of
+% the pattern variables $u_1 ... u_n$ with the scrutinee's arguments $p_1 ...
+% p_n$, but \textit{in addition} we also replace the $\mu$-bound variable $u$
+% (which represents the entire $\mu$ expression itself) with a function $p_\mu$
+% that takes its argument $v$ and re-creates the original $\mu$ expression by
+% scrutinizing $v$.
 
-\section{Type System (sans Inductive Datatypes)}
-\label{sec:type-system}
+\section{Elaborating Type Inference Rules (without Datatypes)}
+This section lists the elaborating type inference rules for Cedille without
+datatypes (i.e., congruence elaboration rules for Cedille 1.0.0), and the
+auxiliary elaboration rules for elaborating telescopes formed by a sequence of
+expressions. To simplify the presentation we do not show elaboration to
+\textit{Cedille Core}, whose terms require significantly more type annotations
+that would clutter the inference rules. Terms in Cedille 1.0.0 maps
+straightforwardly to Cedille Core terms. We describe each judgment form and
+(briefly) a few of the rules comprising it.
 
-\begin{figure}[h]
-  \caption{Contexts}
+Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1.1.1
+
+\begin{figure}[htbp!]
+  \begin{subfigure}{1\linewidth}
+    \caption{\fbox{\(\Gamma \vdash K \elab K'\)} Kind elaboration}
+    \[
+      \begin{array}{ccc}
+        \infer{\Gamma\vdash \star \elab \star}{\ }
+        & \infer
+          { \Gamma\vdash\abs{\Pi}{X}{K_1}{K_2} \elab \abs{Π}{X}{K_1'}{K_2'}}
+          { \Gamma \vdash K_1 \elab K_1'
+          \quad
+          \Gamma,\ann{X}{K_1}\vdash K_2 \elab K_2'
+          }
+        & \infer
+          { \Gamma\vdash\abs{\Pi}{x}{T}{K_1} \elab \abs{Π}{x}{T'}{K_1'}}
+          { \Gamma \vdash T : K_2 \elab T'
+          \quad
+          \Gamma,\ann{x}{T}\vdash K_1 \elab K_1 '
+          }
+        \\ \\
+      \end{array}
+    \]
+  \end{subfigure}
+  \begin{subfigure}{1\linewidth}
+    \caption{\fbox{\(\Gamma \vdash T : K \elab T'\)} Type Elaboration (sans datatypes)}
+    \[
+      \begin{array}{c}
+        \begin{array}{cc}
+          \infer
+          { \Gamma \vdash \{p_1 ≃ p_2 \} : \star \elab \{p_1' ≃ p_2'\}}
+          { FV(p_1\ p_2) \subseteq dom(\Gamma)
+          \quad \Gamma \vdash p_1 \elab p_1'
+          \quad \Gamma \vdash p_2 \elab p_2'
+          }
+          &
+            \infer{
+            \Gamma\vdash\abs{\iota}{x}{T_1}{T_2} : \star \elab \abs{ι}{x}{T_1'}{T_2'}
+            }{
+            \Gamma \vdash T_1 : \star \elab T_1'
+            \quad \Gamma,x:T_1\vdash T_2 : \star \elab T_2'
+            } 
+
+          \\ \\
+            \infer{
+            \Gamma\vdash\abs{\forall}{x}{T_1}{T_2} : \star \elab \abs{∀}{x}{T_1'}{T_2'}
+            }{
+            \Gamma \vdash T_1 : \star \elab T_1'
+            \quad \Gamma,x:T_1 \vdash T_2 : \star T_2'
+          }
+          &
+            \infer
+            { \Gamma\vdash\abs{\Pi}{x}{T_1}{T_2} : ★ \elab \abs{Π}{x}{T_1'}{T_2'}}
+            { \Gamma \vdash T_1 : ★ \elab T_1'
+            \quad
+            \Gamma,x:T_1\vdash T_2 : ★ \elab T_2'
+            }
+
+          \\ \\
+          \infer
+          { \Gamma\vdash\abs{∀}{X}{K}{T} : ★ \elab \abs{∀}{X}{K'}{T'}}
+          { \Gamma \vdash K \elab K'
+          \quad
+          \Gamma,X:K\vdash T : ★ \elab T'
+          }
+          &
+            \infer
+            { \Gamma \vdash \abs{\lambda}{x}{S}{T} : \abs{\Pi}{x}{S}{K_2}
+            \elab \abs{λ}{x}{S'}{T'}\
+            }{
+            \Gamma \vdash S : K_1 \elab S'
+            \quad \Gamma,\ann{x}{S} \vdash T : K_2 \elab T'
+            }
+
+          \\ \\
+          \infer
+          { \Gamma \vdash \abs{\lambda}{X}{K_1}{T} : \abs{\Pi}{X}{K_1}{K_2}
+          \elab \abs{λ}{X}{K_1'}{T'}\
+          }{
+          \Gamma \vdash K_1 \elab K_1'
+          \quad \Gamma,\ann{X}{K_1} \vdash T : K_2 \elab T'
+          }
+          & \infer
+            { \Gamma \vdash T_1 · T_2 : [T_2/X] K_1 \elab T_1' · T_2'}
+            { \Gamma \vdash T_1 : \abs{\Pi}{X}{K_2}{K_1} \elab T_1'
+            \quad \Gamma \vdash T_2 : K_2 \elab T_2'}
+          \\ \\
+          \infer
+          {\Gamma \vdash T\ t : [t/x] K \elab T'\ t'}
+          { \Gamma \vdash T : \abs{\Pi}{x}{S}{K} \elab T'
+          \quad \Gamma \vdash t : S \elab t' }
+          &
+            \infer{
+            \Gamma \vdash X : \Gamma(X) \elab X
+            }{
+            }
+        \end{array}
+          \\ \\
+          \infer[\les]{
+          \Gamma \vdash T : K_2 \elab S' ·T'
+          }{
+          \Gamma \vdash T : K_1 \elab T'
+          \quad \Gamma \vdash K_1 \les K_2 \elales S
+          \quad \Gamma \vdash S : \abs{Π}{X}{K_1}{K_2} \elab S'
+          }
+      \end{array}
+      \\ \\
+    \]
+  \end{subfigure}
+\end{figure}
+
+\begin{itemize}
+\item \(\Gamma \vdash K \elab K'\)
+
+  Read: ``Under context $\Gamma$, $K$ is a well-formed kind and elaborates to
+  $K'$''. Consider the second rule: to elaborate \(\abs{Π}{X}{K_1}{K_2}\) first
+  elaborate $K_1$ to $K_1'$, then elaborate $K_2$ to $K_2'$ under a contextnd
+  extended by $\ann{X}{K_1}$; the result is $\abs{Π}{X}{K_1'}{K_2'}$
+
+\item \(\Gamma \vdash T : K \elab T'\)
+
+  Read: ``Under context $\Gamma$, type $T$ has kind $K$ and elaborates to
+  $T'$''. The rule for elaborating the equality type is worth explaining further
+  as it makes use of a new judgment for pure-term elaboration $\Gamma \vdash p_1
+  \elab p_1'$. To type and elaborate $\{p_1 ≃ p_2\}$, check that the free
+  variables of $p_1$ and $p_2$ are declared by the typing context $\Gamma$;
+  then, elaborate terms $p_1$ and $p_2$ to resp. $p_1'$ and $p_2'$; the
+  resulting elaborated type is $\{p_1' ≃ p_2'\}$
+\end{itemize}
+
+\begin{figure}[htbp!]
+    \begin{subfigure}{1.0\linewidth}
+    \caption{\fbox{\(\vdash \Gamma \elab \Gamma'\)} Elaboration of contexts}
+    \label{sfig:elab-contexts}
+    \[
+      \begin{array}{cc}
+        \infer{
+        \vdash \emptyset \elab \emptyset
+        }{
+        }
+        &
+          \infer{
+          \vdash \Gamma,\ann{x}{T} \elab \Gamma',\ann{x}{T'}
+          }{
+          \vdash \Gamma \elab \Gamma'
+          \quad \Gamma \vdash T : ★ \elab T'
+          }
+
+        \\ \\ 
+        \infer{
+        \vdash \Gamma,\ann{X}{K} \elab \Gamma',\ann{X}{K'}
+        }{
+        \vdash \Gamma \elab \Gamma'
+        \quad \Gamma \vdash K \elab K'
+        }
+        &
+          \infer{
+          \vdash \Gamma,\indel{D}{R}{\Delta}{\Theta}{\mathcal{E}} \elab \Gamma'
+          }{
+          \vdash \Gamma \elab \Gamma'
+          }
+      \end{array}
+    \]
+  \end{subfigure}
+  \begin{subfigure}{1\linewidth}
+    \caption{\fbox{\(\Gamma\, ;\, (\vars{\ann{a}{A}}) \vdash \vars{s} : (\vars{\ann{a}{B}}) \elab
+        \vars{s'}\)} Elaboration of type-coerced constructor argument telescope}
+    \label{sfig:elab-telescope}
+    \[
+      \begin{array}{c}
+        \begin{array}{cc}
+          \infer{
+          \Gamma\, ;\, \varnothing \vdash \varnothing : \varnothing \elab \varnothing
+          }{}
+          &
+            \infer{
+            \Gamma\, ; \,( \ann{x}{S},\vars{\ann{a}{A}})
+            \vdash s,\vars{s}
+            : (\ann{x}{T},\vars{\ann{a}{B}})
+            \elab s',\vars{s'}
+            }{
+            \Gamma,\ann{x}{S} \vdash s : T \elab s'
+            \quad \Gamma,\ann{x}{S}\, ;\, (\vars{\ann{a}{A}})
+            \vdash \vars{s}
+            : ([s/x]\vars{\ann{a}{B}})
+            \elab \vars{s'}
+            }
+        \end{array}
+        \\ \\
+        \infer{
+        \Gamma\, ; \,(\ann{X}{K_1},\vars{\ann{a}{A}})
+        \vdash S,\vars{s}
+        : (\ann{X}{K_2},\vars{\ann{a}{B}})
+        \elab S',\vars{s'}
+        }{
+        \Gamma,\ann{X}{K_1} \vdash S : K_2 \elab S'
+        \quad \Gamma,\ann{X}{K_1}\, ;\, (\vars{\ann{a}{A}})
+        \vdash \vars{s}
+        : ([S/X]\vars{\ann{a}{B}})
+        \elab \vars{s'}
+        }
+      \end{array}
+    \]
+  \end{subfigure}
+\end{figure}
+
+\begin{figure}[p]
   \[
-    \begin{array}{llll}
-      \text{ Typing contexts } \Gamma
-      & ::= & \emptyset\ |\ \ann{x}{C},\Gamma\ |\ \ann{x=s}{C},\Gamma
-    \end{array}
-  \]
-\end{figure}
-\begin{figure}[h!]
-  \[ \small
-    \begin{array}{lcr}
-      \infer{\Gamma\vdash \star : \Box}{\ }
-      & \infer
-        { \Gamma\vdash\abs{\Pi}{y}{C}{C'} : S'}
-        { \Gamma \vdash C : S
-        \quad
-        \Gamma,y:C\vdash C' : S'
-        }
-      & \infer
-        {\Gamma\vdash\abs{\forall}{y}{C}{C'} : \star}
-        {\Gamma \vdash C : S
-        \quad \Gamma,y:C\vdash C' : \star
-%        \quad \textit{Var}(y,S)
-        }
-      \\
-      \\ \infer
-      { \Gamma \vdash \{p \simeq p' \} : \star}
-      { FV(p\ p') \subseteq dom(\Gamma) }
-      & \infer
-        { \Gamma \vdash \kappa : \Gamma(\kappa)}
-        { }
-      & \infer
-        { \Gamma \vdash X : \Gamma(X)}
-        { }
-      \\
-      \\ \infer
-      { \Gamma \vdash \abs{\lambda}{x}{C}{T} : \abs{\Pi}{x}{C}{K}}
-      { \Gamma \vdash \abs{\Pi}{x}{C}{K} : \square
-      \quad \Gamma, \ann{x}{C} \vdash T : K
-      }
-      & \infer
-        { \Gamma \vdash T\ \cdot T' : [T'/x] K'}
-        { \Gamma \vdash T : \abs{\Pi}{x}{K}{K'}
-        \quad \Gamma \vdash T' : K}
-      & \infer
-       { \Gamma \vdash T\ t : [t/x] K}
-        { \Gamma \vdash T : \abs{\Pi}{x}{T'}{K}
-        \quad \Gamma \decchk t : T' }
-    \end{array}
-  \]
-  \caption{Sort checking \fbox{$\Gamma \vdash C : S$}}
-  \label{fig:sort-checking}
-\end{figure}
-
-\begin{figure}[h!]
-  \[ \small
-    \begin{array}{lcr}
+    \begin{array}{cc}
       \infer
-      { \Gamma \decdir u : \Gamma(u)}{}
-      & \infer
-        { \Gamma \decdir \abs{\lambda}{x}{T}{t} : \abs{\Pi}{x}{T}{T'}}
-        { \Gamma \vdash T : K
-        \quad \Gamma, \ann{x}{T} \decdir t : T'}
-      & \infer
-        { \Gamma \decchk \absu{\lambda}{x}{t} : \abs{\Pi}{x}{T}{T'}}
-        { \Gamma, \ann{x}{T} \decchk t : T'}
-      \\
-      \\ \infer
-      { \Gamma \decdir \abs{\Lambda}{x}{C}{t} : \abs{\forall}{x}{C}{T}}
-      { \Gamma \vdash C : S
-      \quad x \notin FV(|t|)
-      \quad \Gamma, \ann{x}{C} \decdir t : T
+      { \Gamma \vdash x : \Gamma(x) \elab x}{}
+      &
+        \infer
+        { \Gamma \vdash \absu{\lambda}{x}{t} : \abs{\Pi}{x}{S}{T} \elab \absu{λ}{x}{t'}}
+        { \Gamma \vdash S : ★ \elab S'
+        \quad \Gamma, \ann{x}{S} \vdash t : T \elab t'
+        }
+      \\ \\
+        \infer
+        { \Gamma \vdash \absu{\Lambda}{x}{t} : \abs{\forall}{x}{S}{T} \elab \absu{Λ}{x}{t'}}
+        { \Gamma \vdash S : ★ \elab S'
+        \quad x \notin FV(|t|)
+        \quad \Gamma, \ann{x}{S} \vdash t : T \elab t'
+        }
+      &
+        \infer
+        { \Gamma \vdash \absu{\Lambda}{X}{t} : \abs{\forall}{X}{K}{T} \elab \absu{Λ}{X}{t'}}
+        { \Gamma \vdash K \elab K'
+        \quad X \notin FV(|t|)
+        \quad \Gamma, \ann{X}{K} \vdash t : T \elab t'
+        }
+      \\ \\
+      \infer
+      { \Gamma \vdash \absu{\Lambda}{x}{t} : \abs{\forall}{x}{S}{T}}
+      { x \notin FV(|t|)
+      \quad \Gamma, \ann{x}{S} \vdash t : T
       }
       & \infer
-        { \Gamma \decchk \absu{\Lambda}{x}{t} : \abs{\forall}{x}{C}{T}}
-        { x \notin FV(|t|)
-        \quad \Gamma, \ann{x}{C} \decdir t : T
+        { \Gamma \vdash t\ s : [s/x]T \elab t'\ s'}
+        { \Gamma \vdash t : \abs{\Pi}{x}{S}{T} \elab t'
+        \quad \Gamma \vdash s : S \elab s'}
+
+
+      \\ \\
+      \infer
+      { \Gamma \vdash t \cdot S : [S/X]T \elab t' ·S'}
+      { \Gamma \vdash t : \abs{\forall}{X}{K}{T} \elab t'
+      \quad \Gamma \vdash S : K \elab S'}
+      &
+        \infer
+        { \Gamma \vdash t\ \mhyph s : [s/x]T \elab t'\ \mhyph s'}
+        { \Gamma \vdash t : \abs{\forall}{x}{S}{T} \elab t'
+        \quad \Gamma \vdash s : S \elab s'}
+
+      \\ \\
+      \infer
+      { \Gamma \vdash t : T \elab t'}
+      {
+        \Gamma \vdash t : S \elab t'
+        \quad S \cong T
+        \quad \Gamma \vdash T : ★ \elab T'
+      %   \Gamma \vdash t : T \elab t'
+      %   & \Gamma \vdash S : ★ \elab S'
+      %   \\[1pt] \Gamma \vdash T : ★ \elab T'
+      %   & |S'| =_{\beta\eta} |T'|
+      % \end{array}
+          }
+      &
+        \infer{
+        \Gamma \vdash [t_1,t_2] : \abs{ι}{x}{T_1}{T_2} \elab [t_1',t_2']
+        }{
+        \Gamma \vdash t_1 : T_1 \elab t_1'
+        \quad \Gamma \vdash t_2 : [t_1/x]T_2 \elab t_2'
+        \quad t_1' \cong t_2'
         }
-      & \infer
-        { \Gamma \decdir t\ t' : [t'/x]T}
-        { \Gamma \decsyn t : \abs{\Pi}{x}{T'}{T}
-        \quad \Gamma \decchk t' : T'}
-      \\
-      \\ \infer
-      { \Gamma \decdir t\ \cdot T : [T/X]T'}
-      { \Gamma \decsyn t : \abs{\forall}{X}{K}{T'}
-      \quad \Gamma \vdash T : K}
-      & \infer
-        { \Gamma \decdir t\ \mhyph t' : [t'/x]T}
-        { \Gamma \decsyn t : \abs{\forall}{x}{T'}{T}
-        \quad \Gamma \decchk t' : T'}
-      & \infer % conversion... maybe needs to include phi and rho now?
-        { \Gamma \decchk t : T }
-        { \Gamma \decsyn t : T'
-          & |T'| =_{\beta} |T| }
-      \\ \\ \infer
-      { \Gamma \decdir [ id : T = t ]\ \mhyph\ t' : T'}
-      { \Gamma \vdash T : K
-        & \Gamma \decchk t : T
-        & \Gamma, \ann{id = t}{T} \decdir t' : T'}
-      & \infer
-        { \Gamma \decdir [ id = t]\ \mhyph\ t' : T' }
-        { \Gamma \decsyn t : T
-          & \Gamma, \ann{id = t}{T} \decdir t' : T'
+      \\ \\
+      \infer{
+      \Gamma \vdash t.1 : T_1 \elab t'.1
+      }{
+      \Gamma \vdash t : \abs{ι}{x}{T_1}{T_2}
+      }
+      &
+        \infer{
+        \Gamma \vdash t.2 : [t.1/x]T_2 \elab t'.2
+        }{
+        \Gamma \vdash t : \abs{ι}{x}{T_1}{T_2} \elab t'
         }
-      & \infer[\footnotemark] % TODO
-        { \Gamma \decdir \rho\ t\ \mhyph\ t' : [t_2/x]\ T}
-        { \Gamma \decsyn t : \{ t_1 \simeq t_2 \}
-          & \Gamma \decsyn t' : [t_1/x]\ T
+      \\ \\
+      \infer
+      { \Gamma \vdash \beta : \{ |t| ≃ |t| \} \elab β}
+      { \Gamma \vdash \{ |t| ≃ |t| \} : \star \elab \{p ≃ p\}
+      }
+      &
+        \infer{
+        \Gamma\vdash \rho\ s\ @\ x.T_2\ \mhyph\ t : [t_2/x]T_2
+        \elab ρ\ s'\ @\ x.T_2'\ \mhyph\ t'
+        }{
+        \begin{array}{cc}
+          \Gamma \vdash s : \{ |t_1| ≃ |t_2| \} \elab s'
+          & \Gamma\vdash t : [t_1/x]T_1 \elab t'
+          \\ T_1 \cong T_2
+          & \Gamma \vdash [t_2/x]T_2 : ★ \elab [t_2'/x]T_2'
+        \end{array}
+            }
+
+      \\ \\
+      \infer
+      { \Gamma \vdash \varphi\ s - t_1\ \{t_2\} : T
+      \elab φ\ s' - t_1'\ \{t_2'\}
+      }{
+      \Gamma \vdash s : \{ |t_1| ≃ |t_2| \} \elab s'
+      \quad \Gamma \vdash t_1 : T \elab t_1'
+      \quad \Gamma \vdash t_2 \elab t_2'
+      }
+      & \infer
+        { \Gamma \vdash δ\ T - t : T \elab δ\ T - t'}
+        { \Gamma \vdash t : \{ \absu{λ}{x}{\absu{λ}{y}{x}} ≃
+        \absu{λ}{x}{\absu{λ}{y}{x}} \} \elab t'
+        \quad \Gamma \vdash T : ★ \elab T'
         }
-      \\ \\ \infer
-      { \Gamma \decdir [ id : K = T ]\ \mhyph\ t' : T'}
-      { \Gamma \vdash K : \square
-        & \Gamma \vdash T : K
-        & \Gamma, \ann{id = T}{K} \decdir t' : T'}
-      & \infer
-        { \Gamma \decchk \beta \{t\} : \{ t' \simeq t' \}}
-        { \Gamma \vdash \{ t' \simeq t' \} : \star }
-      & \infer
-        { \Gamma \decdir \varsigma\ t : \{ t_2 \simeq t_1 \} }
-        { \Gamma \decdir t : \{ t_1 \simeq t_2 \}}
-      \\ \\ \infer
-      { \Gamma \decdir \phi\ t\ \mhyph\ t_1\ \{t_2\} : T}
-      { \Gamma \decchk t : \{ |t_1| \simeq |t_2| \}
-        & \Gamma \decdir t_1 : T}
-      & \infer
-        { \Gamma \decsyn \chi\ T\ \mhyph\ t : T }
-        { \Gamma \decchk t : T }
-      & \infer[\footnotemark]
-        { \Gamma \decchk \delta\ \mhyph\ t : T }
-        { \Gamma \decchk t : \{ \texttt{tt}\ \simeq\ \texttt{ff} \}}
     \end{array}
   \]
-  \caption{Type checking \fbox{$\Gamma \decdir s : C$} (sans inductive datatypes)}
+  \caption{\fbox{\(\Gamma \vdash t : T \elab t'\)} Term elaboration (without datatypes)}
   \label{fig:type-checking}
 \end{figure}
-\footnotetext{Where we assume $t$ does not occur anywhere in $T$}
-\footnotetext{Where $\texttt{tt} = \absu{\lambda}{x}{\absu{\lambda}{y}{x}}$ and
-  $\texttt{ff} = \absu{\lambda}{x}{\absu{\lambda}{y}{y}}$}
+
 % TODO kind-variables... two different rules or Var check?
 % TODO equality, now that it can have rho, phi
 
-The inference rules for classifying expressions in Cedilleum are stratified into
-two judgments. Figure \ref{fig:sort-checking} gives the uni-directional rules
-for ensuring types are well-kinded and kinds are well-formed. Future versions of
-Cedilleum will allow for bidirectional checking for both typing \textit{and}
-sorting, allowing for a unification of these two figures. Most of these rules
-are similar to what one would expect from the Calculus of Implicit
-Constructions, so we focus on the typing rules unique to Cedilleum.
+% The inference rules for classifying expressions in Cedilleum are stratified into
+% two judgments. Figure \ref{fig:sort-checking} gives the uni-directional rules
+% for ensuring types are well-kinded and kinds are well-formed. Future versions of
+% Cedilleum will allow for bidirectional checking for both typing \textit{and}
+% sorting, allowing for a unification of these two figures. Most of these rules
+% are similar to what one would expect from the Calculus of Implicit
+% Constructions, so we focus on the typing rules unique to Cedilleum.
 
-The typing rule for ρ shows that ρ is a primitive for rewriting by an (untyped)
-equality. If $t$ is an expression that synthesizes a proof that two terms $t_1$
-and $t_2$ are equal, and $t'$ is an expression synthesizing type $[t_1/x]\ T$
-(where, as per the footnote, $t_1$ does not occur in $T$), then we may
-essentially rewrite its type to $[t_2/x]\ T$. The rule for β is reflexivity for
-equality -- it witnesses that a term is equal to itself, provided that the type
-of the equality is well-formed. The rule for ς is symmetry for equality.
-Finally, φ acts as a ``casting'' primitive: the rule for its use says that if
-some term $t$ witnesses that two terms $t_1$ and $t_2$ are equal, and $t_1$ has
-been judged to have type $T$, then intuitively $t_2$ can also be judged to have
-type $T$. (This intuition is justified by the erasure rule for φ -- the
-expression erases to $|t_2|$). The last rule involving equality is for δ, which
-witnesses the logical principle \textit{ex falso quodlibet} -- if a certain
-impossible equation is proved (namely that the two Church-encoded booleans
-\texttt{tt} and \texttt{ff} are equal), then \textit{any} type desired is
-inhabited. The remaining primitive χ allows the user to provide an
-explicit top-level annotation for a term.
-
+% The typing rule for ρ shows that ρ is a primitive for rewriting by an (untyped)
+% equality. If $t$ is an expression that synthesizes a proof that two terms $t_1$
+% and $t_2$ are equal, and $t'$ is an expression synthesizing type $[t_1/x]\ T$
+% (where, as per the footnote, $t_1$ does not occur in $T$), then we may
+% essentially rewrite its type to $[t_2/x]\ T$. The rule for β is reflexivity for
+% equality -- it witnesses that a term is equal to itself, provided that the type
+% of the equality is well-formed. The rule for ς is symmetry for equality.
+% Finally, φ acts as a ``casting'' primitive: the rule for its use says that if
+% some term $t$ witnesses that two terms $t_1$ and $t_2$ are equal, and $t_1$ has
+% been judged to have type $T$, then intuitively $t_2$ can also be judged to have
+% type $T$. (This intuition is justified by the erasure rule for φ -- the
+% expression erases to $|t_2|$). The last rule involving equality is for δ, which
+% witnesses the logical principle \textit{ex falso quodlibet} -- if a certain
+% impossible equation is proved (namely that the two Church-encoded booleans
+% \texttt{tt} and \texttt{ff} are equal), then \textit{any} type desired is
+% inhabited. The remaining primitive χ allows the user to provide an
+% explicit top-level annotation for a term.
+\newpage
 \section{Inductive Datatypes}
 \label{sec:ind-data}
 
