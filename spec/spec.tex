@@ -1888,16 +1888,16 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
       \begin{array}{c}
         \begin{array}{cc}
           \infer{
-          \Gamma ; s \vdash ★\ \les\ ★
+          \Gamma \vdash ★\ \les\ ★
           \elales
-          \absu{λ}{X}{X}
+          \abs{λ}{X}{★}{X}
           }{
           }
           &
             \infer{
             \Gamma \vdash \abs{Π}{x}{S_1}{K_1} \les \abs{Π}{x}{S_2}{K_2}
             \elales
-            \absu{λ}{P}{\absu{λ}{x}{ [x/y]S · (P\ (s\ x)) }}
+            \abs{λ}{P}{(\abs{Π}{x}{S_1}{K_1})}{\abs{λ}{x}{S_2}{ [x/y]S · (P\ (s\ x)) }}
             }{
             \Gamma  \vdash S_2 \les S_1 \elales s
             \quad
@@ -1909,7 +1909,7 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
         \infer{
         \Gamma \vdash \abs{Π}{X}{K_1}{K_2} \les\ \abs{Π}{X}{K_1'}{K_2'}
         \elales
-        \absu{λ}{P}{\abs{λ}{X}{ [X/Y]S_2 ·(P ·(S_1 · X)) }}
+        \abs{λ}{P}{(\abs{Π}{X}{K_1}{K_2})}{\abs{λ}{X}{K_1'}{ [X/Y]S_2 ·(P ·(S_1 · X)) }}
         }{
         \Gamma \vdash K'_1 \les\ K_1
         \elales S_1
@@ -1929,23 +1929,290 @@ rules. The core rule is in the first row, second column; the rest are congruence
 and convertibility rules.
 
 Read the judgment \(\Gamma \vdash S \les T \elales s'\) as: ``under a context
-$\Gamma$, type $S$ is a subtype of $T$ and the coercion that witnesses this is
-$s'$''. For the core rule of this judgment, we are in a case where we are trying
-to show some type $S$ applied to term and type arguments $\vars{s\splab{I}_1}$
-is a subtype of datatype $D$ (instantiated with parameters $\vars{s\splab{P}}$
-and indicies $\vars{s\splab{I}_2}$). We check that the two sets of indices are
-equal, that $D$ really is a declared datatype, and finally that we have some
-assumption already in the context which tells us that type $S$ ``is'' a $D\
-\vars{s\splab{P}}$. The global names $\texttt{to/}D$ and $\texttt{Is/}D$ are
-explained in Section \ref{sec:ind-data} (and in Section \ref{sec:intro}); here
-it suffices to say that $\texttt{to/}D$ is a zero-cost cast (modulo the same
-indices) from any type $S$ to $D\ \vars{s\splab{P}}$ when it is provided
-evidence that \(\texttt{Is/}D\ \vars{s\splab{P}}\ ·S\).
+$\Gamma$, type $S$ is a subtype of $T$ and the coercion that witnesses this fact
+is $s'$''. For the core rule of this judgment, we are in a case where we are
+trying to show some type $S$ applied to term and type arguments
+$\vars{s\splab{I}_1}$ is a subtype of datatype $D$ (instantiated with parameters
+$\vars{s\splab{P}}$ and indicies $\vars{s\splab{I}_2}$). We check that the two
+sets of indices are equal, that $D$ really is a declared datatype, and finally
+that we have some assumption already in the context which tells us that type $S$
+``is'' a $D\ \vars{s\splab{P}}$. The global names $\texttt{to/}D$ and
+$\texttt{Is/}D$ are explained in Section \ref{sec:ind-data} (and in Section
+\ref{sec:intro}); here it suffices to say that $\texttt{to/}D$ is a zero-cost
+cast (modulo the same indices) from any type $S$ to $D\ \vars{s\splab{P}}$ when
+it is provided evidence that \(\texttt{Is/}D\ \vars{s\splab{P}}\ ·S\).
 
 One helpful way to view these rules is as a type-guided construction of
 zero-cost casts between two types following structural subtyping rules, where
 our base subtyping assumptions are given by variables declared in the typing
 context of an appropriate type.
+
+\subsection{Subkinding}
+Subtyping for types that quantify over other types requires a
+\textit{subkinding} judgment. Read the judgment \(\Gamma \vdash K_1 \les K_2
+\elales S\) as: ``under context $\Gamma$, $K_1$ is a subkind of $K_2$ and the
+coercion that witnesses this fact is $S$''. Unlike for terms, kind annotations
+for the abstracted variable of λ-expressions at the type level remain after
+erasure; therefore we cannot say the kind coercion produced by the subkinding
+rules is always definitionally equal to $\absu{λ}{X}{X}$, as this is not even a
+well-formed erased type! The only invariant these rules preserve is that if
+$\Gamma \vdash K_1 \les K_2 \elales S$ then $\Gamma \vdash S : K_1 ➔ K_2$ (i.e.
+the kind of $S$ is \(\abs{Π}{X}{K_1}{K_2}\) where $X$ does not occur in $K_2$).
+This poses no problem for the subtyping rules, as all such type coercions occur
+within type arguments to terms, which are erased.
+
+We consider the second rule of the first row: the goal is to produce a coercion
+between the kinds \(\abs{Π}{x}{S_1}{K_1}\) and \(\abs{Π}{x}{S_2}{K_2}\). First
+we have the usual contravariance for functionals: it must be the case that $S_2$
+is a subtype of $S_1$, with $s$ type coercion (of type $S_2 ➔ S_1$ and erasing
+to $\absu{λ}{x}{x}$) witnessing this fact. Next, under context $\Gamma$ extended
+by assumption $\ann{y}{S_2}$\footnote{We $\alpha$-convert the abstracted
+  variable to improve readability} we must have that $K_1$ with free variable
+$x$ substituted with $s\ y$ is a subkind of $K_2$ with free variable $x$
+substituted for $y$. The resulting coercion $S$ has kind $[(s\ y)/x]K_1 ➔
+[y/x]K_2$. Finally, coercion produced in the conclusion of the judgment is
+formed by abstracting over type variable $P$ of the subkind
+\(\abs{Π}{x}{S_1}{K_1}\) and term variable $x$ of the domain $S_2$ of the
+superkind \(\abs{Π}{x}{S_2}{K_2}\) and then a sequence of term and type
+applications. Read innermost to outermost: coerce the term variable $x$ to type
+$S_1$, and give the result to $P$, then coerce the kind of this expression with
+$S$ (renaming $y$ to $x$ within $S$).
+
+\newpage
+\section{Datatype Elaboration Interface}%
+\label{sec:generic-interface}%
+\begin{figure}[h]
+  \caption{Definitions used by positivity checker}
+  \label{sfig:elab-toolkit}
+{
+\begin{alltt}
+module Positivity (\(\Gamma\splab{P}\))
+Id: (\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★) ➔ ★
+= λ A: \(\Gamma\splab{I}\) ➔ ★. λ B: \(\Gamma\splab{I}\) ➔ ★.
+  \(\Sigma\) f: (∀ \(\Gamma\splab{I}\). A \(\Gamma\splab{I}\) ➔ B \(\Gamma\splab{I}\)). \{f ≃ id\}.
+
+intrId: ∀ A: \(\Gamma\splab{I}\) ➔ ★. ∀ B: \(\Gamma\splab{I}\) ➔ ★.
+  Π f: (∀ \(\Gamma\splab{I}\). A \(\Gamma\splab{I}\) ➔ B \(\Gamma\splab{I}\)). (∀ \(\Gamma\splab{I}\). Π x: A \(\Gamma\splab{I}\). \{f x ≃ x\}) ➔ Id ·A ·B
+= <..>
+
+elimId: ∀ A: \(\Gamma\splab{I}\) ➔ ★. ∀ B: \(\Gamma\splab{I}\) ➔ ★. ∀ _: Id ·A ·B. ∀ \(\Gamma\splab{I}\). A \(\Gamma\splab{I}\) ➔ B \(\Gamma\splab{I}\)
+= <..>.
+_ : \{elimId ≃ λ x. x\} = β.
+
+IdMapping: ((\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★)) ➔ ★
+= λ F: (\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★).
+  ∀ A: \(\Gamma\splab{I}\) ➔ ★. ∀ B: \(\Gamma\splab{I}\) ➔ ★. (Id ·A ·B) ➔ (Id ·(F ·A) ·(F ·B)).
+
+imap: ∀ F: (\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★).
+  ∀ _: IdMapping ·F. ∀ A: \(\Gamma\splab{I}\) ➔ ★. ∀ B: \(\Gamma\splab{I}\) ➔ ★. ∀ _: Id ·A ·B. ∀ \(\Gamma\splab{I}\). F ·A \(\Gamma\splab{I}\) ➔ F ·B \(\Gamma\splab{I}\)
+= <..>
+_ : \{imap ≃ λ x. x\} = β.
+\end{alltt}
+}
+\end{figure}
+\begin{figure}
+  \caption{Generic constructs for λ-encoded inductive types}
+  \label{sfig:elab-mendler}
+    {
+\begin{alltt}
+import Positivity.
+
+module GenericInd (\(\Gamma\splab{P}\)) (F: (\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★)) \{im: IdMapping \(\Gamma\splab{P}\) ·F\}
+
+Fix: Π F: (\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★). IdMapping \(\Gamma\splab{P}\) ·F ➔ \(\Gamma\splab{I}\) ➔ ★ = <..>
+
+D: \(\Gamma\splab{I}\) ➔ ★ = Fix ·F im.
+in: ∀ \(\Gamma\splab{I}\). F ·D \(\Gamma\splab{I}\) ➔ D \(\Gamma\splab{I}\) = <..>
+out: ∀ \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ F ·D \(\Gamma\splab{I}\) = <..>
+
+PrfAlg: (Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★) ➔ ★
+= λ P: (Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★). ∀ R: \(\Gamma\splab{I}\) ➔ ★. ∀ c: Id ·R ·D.
+  Π o: ∀ \(\Gamma\splab{I}\). R \(\Gamma\splab{I}\) ➔ F ·R \(\Gamma\splab{I}\). ∀ oeq: \{o ≃ out\}.
+  (∀ \(\Gamma\splab{I}\). Π r: R \(\Gamma\splab{I}\). P \(\Gamma\splab{I}\) (elimId -c \(\Gamma\splab{I}\) r)) ➔
+  ∀ \(\Gamma\splab{I}\). Π fr: F ·R \(\Gamma\splab{I}\). P \(\Gamma\splab{I}\) (in \(\Gamma\splab{I}\) (imap -im -c \(\Gamma\splab{I}\) fr)).
+
+induction: ∀ P: Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★. PrfAlg ·P ➔ ∀ \(\Gamma\splab{I}\). Π d: D \(\Gamma\splab{I}\). P \(\Gamma\splab{I}\) d = <..>
+
+inductionComp: ∀ P: Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★. Π alg: PrfAlg ·P. ∀ \(\Gamma\splab{I}\). Π fd: F ·D \(\Gamma\splab{I}\).
+  \{induction alg (in fd) ≃ alg out (induction alg) fd\}
+= Λ P. λ alg. λ fd. β.
+
+lambek1: ∀ \(\Gamma\splab{I}\). Π fd: F ·D \(\Gamma\splab{I}\). \{fd ≃ out (in fd)\} = β.
+lambek2: ∀ \(\Gamma\splab{I}\). Π d: D \(\Gamma\splab{I}\). \{d ≃ in (out d)\}
+= λ d. induction ·P (Λ R. Λ c. λ o. Λ eq. λ ih. Λ \(\Gamma\splab{I}\). λ fr. β) d
+\end{alltt}
+}
+\end{figure}
+% \paragraph{\textbf{Background: Mendler-style algebras}} The generic framework of
+% \cite{FBS18_Efficient-Mendler,FDJS18_CoV-Ind} models inductive datatypes using
+% Mendler-style algebras, so we begin our discussion of the elaborator interface
+% with a brief description of these. It is well understood categorically that an
+% inductive datatype $D$ can be represented as the carrier of the initial algebra
+% for (i.e., the least fixed-point of) its signature functor $D\splab{F}$
+% \cite{Ma90_Data-Structures-Program-Transform}, with the definition of a conventional
+% $D\splab{F}$-algebra in type theory as the family of functions
+% \(\abs{λ}{X}{★}{D\splab{F} ·X ➔ X}\). The Mendler-style \(D\splab{F}\)-algebra,
+% which can also be used to define $D$\cite{UV99_Mendler-Inductive-Types}, is
+% \(\abs{λ}{X}{★}{\abs{∀}{R}{★}{(R ➔ X) ➔ D\splab{F} ·R ➔ X}}\), where
+% operationally the $R ➔ X$ function is used to make recursive calls on subdata of
+% the quantified type $R$. A Mender-style \textit{CoV} algebra is additionally
+% equipped with an abstract destructor \(R ➔ F ·R\) (i.e., fixpoint unrolling
+% function) allowing for further case analysis on subdata at the abstract type.
+% For a thorough treatment of the expressive power of Mendler-style algebras see
+% \cite{AS11_Mendler-Hierarchy}.
+
+\subsection{Generic Framework}
+The elaborator interface is implemented using the definitions in Figures
+\ref{sfig:elab-toolkit} and \ref{sfig:elab-mendler}, which list resp. a set of
+utilities and the primary results provided by the generic framework. Our
+implementation regenerates these definitions for each datatype to support large
+indices (type-indexed types), not handled by the generic framework. All such definitions
+are definable in Cedille \textit{without datatypes} and thus map straightforwardly
+to CDLE. For the utilities, we have:
+\begin{itemize}
+\item \texttt{Id}, \texttt{intrId}, \texttt{elimId}: \texttt{Id} is a generalized type of identity functions in CDLE using the
+  fact that a term may have multiple types. A term $c$ of type
+  $\texttt{Id} ·A ·B$ is a dependent pair ($\Sigma$, also definable) whose first projection
+  $\pi_1\ c$ has type \(A ➔ B\) and second $\pi_2\ c$ is a
+  proof that \(\{\pi_1\ c ≃ \absu{λ}{x}{x}\}\). Its eliminator \texttt{elimId}
+  is convertible with $\absu{λ}{x}{x}$.
+\item \texttt{IdMapping}, \texttt{imap}: \texttt{IdMapping} is a generalization of a functor where the mapping
+  need only be defined for identity functions. A term of type $\texttt{IdMapping}
+  · F$ can be viewed as a proof that $F$ is positive. Our elaborator
+  produces such a proof when checking datatype positivity. \texttt{imap} maps such
+  an identity function over $F$ and is convertible with $\absu{λ}{x}{x}$.
+\end{itemize}
+
+\noindent For the generic framework, taking module parameters $(F : ★ ➔ ★)$ and
+$\{im : \texttt{IdMapping} ·F\}$ (with curly braces indicating $im$ is an erased
+parameter): 
+\begin{itemize}
+\item \texttt{Fix}, \texttt{D}, \texttt{in}, \texttt{out}: resp. the
+  type-level fixpoint function, the least
+  fixed-point of $F$, and its rolling and unrolling functions.
+
+\item \texttt{PrfAlg}: an inductive version of the Mendler-style CoV algebra.
+  Its additional (erased) arguments are $c$, an identity function from $R$ to
+  \texttt{D}, and $oeq$, a proof that the abstract destructor $o$ is equal to
+  \texttt{out}. Argument $c$ is required to be even able state the result of
+  \texttt{PrfAlg}: that $P$ holds of the \texttt{in} of $f\!r$ coerced (using
+  \texttt{imap}) to type $F ·\texttt{D}$.
+\item \texttt{induction}, \texttt{inductionComp}: the generic induction
+  principle for \texttt{D} and its computation law
+\item \texttt{lambek1} and \texttt{lambek2}, the proofs of \textit{Lambek's
+    lemma} that \texttt{in} and \texttt{out} are mutual inverses.
+\end{itemize}
+
+\subsection{Elaborator Interface}
+\label{ssec:elab-interface}
+There is a discrepancy between the facilities of the generic framework and the
+design of the surface language. In the former, a function like \texttt{minus'}
+(Figure \ref{fig:cov-divide}) must be given $o$, the abstract \texttt{out} of
+type \(N ➔ \texttt{Nat\splab{FI}} ·N\) (where $N$ is the type variable bound in the
+\texttt{PrfAlg} given to \texttt{induction}, and \texttt{Nat\splab{FI}} is the 
+inductive signature functor of \texttt{Nat}), directly. Doing the same in the surface
+language has the undesirable consequence of exposing 
+\texttt{Nat\splab{FI}} to the user. Worse still, \(\texttt{minus'}\ o\) is not
+definitionally equal to \(\texttt{minus} = \texttt{minus'}\ \texttt{out}\), and
+so proofs like \texttt{leDiv} (Figure \ref{fig:cov-induction}) would require
+explicit use of $oeq : \{o ≃ \texttt{out}\}$, as they do when using the
+framework directly.
+
+\begin{figure}[h]
+{
+\begin{alltt}
+module DataInterface (F: ★ ➔ ★) \{im: IdMapping · F\}.
+import GenericInd ·F -im.
+
+View: Π A: ★. Π a: A. ★ ➔ ★ = λ A: ★. λ a: A. λ B: ★. \(\Sigma\) b: B. \{a ≃ b\}.
+intrView: ∀ A: ★. ∀ B: ★. ∀ a: A. Π b: B. \{b ≃ a\} ➔ View ·A a ·B
+  = Λ A. Λ B. Λ x. λ y. λ eq. (y , eq).
+elimView: ∀ A: ★. ∀ B: ★. Π a: A. ∀ _: View ·A a ·B. B
+  = Λ A. Λ B. λ a. Λ v. φ (\(\pi_2\) v) - (\(\pi_1\) v) \{a\}.
+_ : \{elimView ≃ λ x. x\} = β.
+
+IsD: ★ ➔ ★ = λ R: ★. (Id ·R ·D) \(\times\) (View ·(D ➔ F ·D) out ·(R ➔ F ·R)).
+isD: IsD ·D = (intrId (λ x. x) (λ _. β) , intrView -out out β).
+toD: ∀ R: ★. ∀ _: IsD ·R. R ➔ D = Λ R. Λ is. λ r. elimId -(\(\pi\sb{1}\) is) r.
+toFD: ∀ R: ★. ∀ _: IsD ·R. F ·R ➔ F ·D = Λ R. Λ is. λ fd. imap -pos -(\(\pi\sb{1}\) is) fd.
+
+ByCases: (D ➔ ★) ➔ Π R: ★. IsD ·R ➔ ★
+  = λ P: D ➔ ★. λ R: ★. λ is: IsD ·R. Π fr: F ·R. P (in (toFD -is fr)).
+mu': ∀ R: ★. ∀ is: IsD ·R. Π r: R. ∀ P: D ➔ ★. ByCases ·P ·R is ➔ P (toD -is r)
+  = Λ R. Λ is. λ r. Λ P. λ case. ρ (lambek2 (toFD -is r)) - case (elimView out -(\(\pi\sb{1}\) is) r)
+
+ByInd: (D ➔ ★) ➔ ★
+  = λ P: D ➔ ★. ∀ R: ★. ∀ is: IsD ·R. (Π r: R. P (toD -is r)) ➔ ByCases ·P ·R is.
+mu: Π d: D. ∀ P: D ➔ ★. ByInd · P ➔ P d
+  = λ d. Λ P. λ ind. induction ·P (
+    Λ R. Λ c. λ o. λ oeq. λ ih. λ fr. ind -(c , intrView -out o oeq) ih fr) d
+\end{alltt}
+  }
+  \caption{Interface for datatype elaborator}
+  \label{fig:elab-interface}
+\end{figure}
+
+Our solution to this discrepancy is \texttt{View} (Figure \ref{fig:elab-interface}),
+a novel type that (similar to \texttt{Id}) takes advantage of our Curry-style
+theory. \(\texttt{View} ·A\ a ·B\) is the type of proofs that a specified term
+$a$ (of type $A$) can be ``viewed'' as having type $B$ (e.g. \texttt{out} at
+an abstract type). It is introduced (\texttt{intrView}) by providing some $b$
+of type $B$ and a proof \(\{b ≃ a\}\). Most significant of \texttt{View} is that
+its eliminator (\texttt{elimView}) takes the named $a$ and an erased
+\texttt{View} witness and returns the $a$ at type $B$, thanks to the typing and
+erasure of φ (Figure \ref{sfig:cdle-eq}). The upshot is that functions like
+\texttt{minus'} do not need to use \texttt{out} indirectly by taking as an argument
+some abstract version of it. Instead, they only
+require \textit{permission to use} (in the form of a \texttt{View} witness)
+\texttt{out} at the abstract type; this why \texttt{minus} and \texttt{minus'}
+(and even the \textit{fully separate definitions} of \texttt{pred} and \texttt{pred'}) are
+definitionally equal.
+
+Figure \ref{fig:elab-interface} lists the remaining definitions in the interface used by our
+datatype elaborator:
+
+\begin{itemize}
+\item \texttt{IsD}, \texttt{isD}, \texttt{toD}: the generic versions of
+  the global definitions of similar name that are defined for every declared
+  datatype. $\texttt{IsD} ·R$ is pair type ($\times$): the first
+  component (of type \(\texttt{Id} ·R ·\texttt{D}\)) is a proof that all terms of type $R$
+  have type \texttt{D}; the second component (of type \(\texttt{View} ·(\texttt{D}
+  ➔ \texttt{F} ·\texttt{D})\ \texttt{out} ·(R ➔ \texttt{F} ·R)\)\texttt) is a
+  witness that \texttt{out} can be used at type \(R ➔
+  \texttt{F} ·R\).
+  \texttt{isD} is (still) the trivial witness of \texttt{IsD}. \texttt{toD} casts a
+  term of type $R$ to \texttt{D} given a proof \(\texttt{IsD} ·R\); since
+  \texttt{elimId} converts with $\absu{λ}{x}{x}$, so too does \texttt{toD},
+  \textit{justifying the convertibility of functions \texttt{to/$D$} with \(\absu{λ}{x}{x}\) in the
+    surface language}. \texttt{toFD} is not exported to the
+  surface language (as the datatype's signature functor is not) and uses
+  \texttt{imap} to cast \(\texttt{F} ·R\) to \(\texttt{F} ·\texttt{D}\).
+  
+\item \texttt{ByCases}, \texttt{mu'}: type \(\texttt{ByCases} ·P ·R\ is\,\) is the generic
+  type of proofs of $P$ by case analysis. Thus,
+  type of \texttt{mu'} says 
+  that for any term $r$ of type $R$ where \(\texttt{IsD} ·R\) holds, to show
+  $P$ holds of $r$ (after casting $r$ to \texttt{D}), it suffices to give a
+  proof by case analysis on $R$; its definition uses \texttt{out} at the abstract type
+  $R ➔ F ·R$ (via \texttt{elimView}) on argument $r$, gives this to
+  \texttt{case} proving (with coercions omitted) \(P\ (\texttt{in}\
+  (\texttt{out}\ r))\), and rewrites this type with ρ by Lambek's lemma.
+
+\item \(\texttt{ByInd} · P\) is the type of generic proofs that $P$ holds by
+  induction. It is defined in terms of a proof \texttt{ByCases} additionally
+  equipped with the inductive hypothesis and evidence of \(\texttt{IsD} ·R\) for
+  the quantified type $R$. Thus, the type of \texttt{mu} says that $P$ holds for any $d$ given a proof by
+  induction on \texttt{D}; its definition uses \texttt{induction}, repackaging the
+  assumptions available to the \texttt{PrfAlg} argument for use by argument \texttt{ind}.
+\end{itemize}
+
+There is a direct mapping between the definition of \texttt{ByInd} (and thus, in
+the type of \texttt{mu}) and the local definitions introduced within the body of
+μ-expressions in the surface language. For a μ-expression recursively defining
+$ih$, the type \texttt{Type/}$ih$ corresponds to type variable
+$R$; \texttt{isType/}$ih$ to argument $is$; and the name $ih$
+itself corresponds to the inductive hypothesis.
+
 
 \newpage
 \section{Inductive Datatypes}
