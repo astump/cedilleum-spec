@@ -51,7 +51,7 @@
 \newcommand{\splab}[1]{\ensuremath{^{\text{#1}}}}
 \newcommand{\elalab}[1]{\ensuremath{\overset{\text{#1}}{\elab}}}
 \newcommand{\elapos}{\ensuremath{\overset{\text{+}}{\elab}}}
-\newcommand{\elales}{\ensuremath{\elab}}
+\newcommand{\elales}{\ensuremath{\nearrow}}
 
 \newcommand{\indast}[5]{\texttt{Ind}_{#1} [#2] (#3 : #4 = #5)}
 % inductive-declaration scheme
@@ -149,7 +149,7 @@ implementation of CDLE.
       \begin{array}{cr}
       \begin{array}{cc}
         \infer{
-         \Gamma \vdash \beta : \{t ≃ t\}
+         \Gamma \vdash \beta{t'} : \{t ≃ t\}
         }{
          \Gamma \vdash \{t \simeq t\} : \star
         }
@@ -1405,6 +1405,8 @@ straightforwardly to Cedille Core terms. We describe each judgment form and
 
 Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1.1.1
 
+\subsection{Main judgments}
+
 \begin{figure}[htbp!]
   \begin{subfigure}{1\linewidth}
     \caption{\fbox{\(\Gamma \vdash K \elab K'\)} Kind elaboration}
@@ -1514,6 +1516,118 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
   \end{subfigure}
 \end{figure}
 
+\begin{figure}[p]
+  \[
+    \begin{array}{cc}
+      \infer
+      { \Gamma \vdash x : \Gamma(x) \elab x}{}
+      &
+        \infer
+        { \Gamma \vdash \absu{\lambda}{x}{t} : \abs{\Pi}{x}{S}{T} \elab \absu{λ}{x}{t'}}
+        { \Gamma \vdash S : ★ \elab S'
+        \quad \Gamma, \ann{x}{S} \vdash t : T \elab t'
+        }
+      \\ \\
+        \infer
+        { \Gamma \vdash \absu{\Lambda}{x}{t} : \abs{\forall}{x}{S}{T} \elab \absu{Λ}{x}{t'}}
+        { \Gamma \vdash S : ★ \elab S'
+        \quad x \notin FV(|t|)
+        \quad \Gamma, \ann{x}{S} \vdash t : T \elab t'
+        }
+      &
+        \infer
+        { \Gamma \vdash \absu{\Lambda}{X}{t} : \abs{\forall}{X}{K}{T} \elab \absu{Λ}{X}{t'}}
+        { \Gamma \vdash K \elab K'
+        \quad X \notin FV(|t|)
+        \quad \Gamma, \ann{X}{K} \vdash t : T \elab t'
+        }
+      \\ \\
+      \infer
+      { \Gamma \vdash t\ s : [s/x]T \elab t'\ s'}
+      { \Gamma \vdash t : \abs{\Pi}{x}{S}{T} \elab t'
+      \quad \Gamma \vdash s : S \elab s'}
+      &
+      \infer
+      { \Gamma \vdash t \cdot S : [S/X]T \elab t' ·S'}
+      { \Gamma \vdash t : \abs{\forall}{X}{K}{T} \elab t'
+      \quad \Gamma \vdash S : K \elab S'}
+      \\ \\ 
+        \infer
+        { \Gamma \vdash t\ \mhyph s : [s/x]T \elab t'\ \mhyph s'}
+        { \Gamma \vdash t : \abs{\forall}{x}{S}{T} \elab t'
+        \quad \Gamma \vdash s : S \elab s'}
+      & 
+      \infer[\les]
+      { \Gamma \vdash t : T \elab s'\ t'}
+        {
+        \begin{array}{cc}
+          \Gamma \vdash t : S \elab t'
+          & \Gamma \vdash T : ★ \elab T'
+          \\ S \les T \elales s
+          & \Gamma \vdash s : S ➔ T \elab s'
+        \end{array}
+          }
+      \\ \\
+        \infer{
+        \Gamma \vdash [t_1,t_2] : \abs{ι}{x}{T_1}{T_2} \elab [t_1',t_2']
+        }{
+        \Gamma \vdash t_1 : T_1 \elab t_1'
+        \quad \Gamma \vdash t_2 : [t_1/x]T_2 \elab t_2'
+        \quad t_1' \cong t_2'
+        }
+      &
+      \infer{
+      \Gamma \vdash t.1 : T_1 \elab t'.1
+      }{
+      \Gamma \vdash t : \abs{ι}{x}{T_1}{T_2}
+      }
+      \\ \\ 
+        \infer{
+        \Gamma \vdash t.2 : [t.1/x]T_2 \elab t'.2
+        }{
+        \Gamma \vdash t : \abs{ι}{x}{T_1}{T_2} \elab t'
+        }
+      & 
+      \infer
+      { \Gamma \vdash \beta\{p_1\} : \{ |t| ≃ |t| \} \elab β\{p_1'\}}
+        { \Gamma \vdash \{ |t| ≃ |t| \} : \star \elab \{p ≃ p\}
+        \quad FV(p_1) \subseteq dom(\Gamma)
+        \quad \Gamma \vdash p_1 \elab p_1'
+      }
+      \\ \\
+        \infer{
+        \Gamma\vdash ρ\ s\ @\ x.T_2\ \mhyph\ t : [t_2/x]T_2
+        \elab ρ\ s'\ @\ x.T_2'\ \mhyph\ t'
+        }{
+        \begin{array}{cc}
+          \Gamma \vdash s : \{ |t_1| ≃ |t_2| \} \elab s'
+          & T_1 \cong T_2
+          \\ \Gamma\vdash t : [t_1/x]T_1 \elab t'
+          & \Gamma \vdash [t_2/x]T_2 : ★ \elab [t_2'/x]T_2'
+        \end{array}
+            }
+      & 
+      \infer
+      { \Gamma \vdash \varphi\ s - t_1\ \{t_2\} : T
+      \elab φ\ s' - t_1'\ \{t_2'\}
+      }{
+      \Gamma \vdash s : \{ |t_1| ≃ |t_2| \} \elab s'
+      \quad \Gamma \vdash t_1 : T \elab t_1'
+      \quad \Gamma \vdash t_2 \elab t_2'
+        }
+      \\ \\ 
+      \infer
+        { \Gamma \vdash δ\ T - t : T \elab δ\ T' - t'}
+        { \Gamma \vdash t : \{ \absu{λ}{x}{\absu{λ}{y}{x}} ≃
+        \absu{λ}{x}{\absu{λ}{y}{x}} \} \elab t'
+        \quad \Gamma \vdash T : ★ \elab T'
+        }
+    \end{array}
+  \]
+  \caption{\fbox{\(\Gamma \vdash t : T \elab t'\)} Term elaboration (without datatypes)}
+  \label{fig:type-checking}
+\end{figure}
+
 \begin{itemize}
 \item \(\Gamma \vdash K \elab K'\)
 
@@ -1531,7 +1645,48 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
   variables of $p_1$ and $p_2$ are declared by the typing context $\Gamma$;
   then, elaborate terms $p_1$ and $p_2$ to resp. $p_1'$ and $p_2'$; the
   resulting elaborated type is $\{p_1' ≃ p_2'\}$
+
+\item \(\Gamma \vdash t : T \elab t'\)
+
+  Read: ``Under context $\Gamma$, term $t$ has type $T$ and elaborates to
+  $t'$''. We will note a few of the rules for this judgment, with the list below
+  indicating the rule by its subject of typing:
+
+  \begin{itemize}
+  \item \(ρ\ s\ @ x.T_2\ - t\). We use a modified rule for ρ (``rewrite a type by an
+    equation'') based on the form used by Cedille Core\cite{St18_Cedille-Core}.
+    This version of the rule ensures that the resulting expression has a
+    well-kinded type, which is not the case for all other proposed versions.
+
+    If $s$ has type \(\{|t_1| ≃ |t_2|\}\) (i.e. provides the equation we will
+    rewrite by) and elaborates to $s'$, and $t$ (the term whose type we are
+    rewriting) has type \([t_1/x]T_1\) and elaborates to $t'$, and $T_1$
+    is convertible with the user-supplied type guide $T_2$, and finally the type
+    $[t_2/x]T_2$ has kind $★$ and elaborates to $[t_2/x]T_2'$, then the entire
+    expression has type $[t_2/x]T_2$ and elaborates to \(ρ\ s'\ @x.T_2' - t'\)
+
+  \item \(\absu{Λ}{x}{t}\). The domain $S$ of this implicit function must have
+    kind $★$ and elaborate to a type $S'$. The Λ-bound variable $x$ must not
+    occur free in the erasure of the body $t$. On the assumption of
+    $\ann{x}{S}$, $t$ must have type $T$ and elaborate to $t'$.
+
+    (TODO) In the appendix we will show that elaborate is sound with respect to
+    $FV$ (e.g. the free variables of $t$ are the same as the free variables of
+    $t'$, and similiarly for $|t|$ and $|t'|$).
+  \end{itemize}
+
+  We also explain the subtyping subsumption rule (for Cedille 1.0.0, replaced
+  the relation $\les$ with $\cong$ and the coercions $s$ with $\absu{λ}{x}{x}$
+  -- well, $s$ was going to be that already!).
+
+  If $t$ has type $S$ and elaborates to $S'$, and $S$ is a subtype of $T$ with
+  the evidence of that being $s$, and further, subtyping evidence $s$ has type
+  $S ➔ T$ and elaborates to $s'$, then $t$ also has type $T$ and elaborates to
+  $s'\ t'$. As we will show further on, coercion $s$ (and thus its elaboration
+  $s'$) will always be definitionally equal to $\absu{λ}{x}{x}$.
 \end{itemize}
+
+\subsection{Auxiliary Judgments}
 
 \begin{figure}[htbp!]
     \begin{subfigure}{1.0\linewidth}
@@ -1550,7 +1705,6 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
           \vdash \Gamma \elab \Gamma'
           \quad \Gamma \vdash T : ★ \elab T'
           }
-
         \\ \\ 
         \infer{
         \vdash \Gamma,\ann{X}{K} \elab \Gamma',\ann{X}{K'}
@@ -1560,10 +1714,11 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
         }
         &
           \infer{
-          \vdash \Gamma,\indel{D}{R}{\Delta}{\Theta}{\mathcal{E}} \elab \Gamma'
+          \vdash \Gamma,\indeli{D}{\Gamma\splab{P}}{\Gamma\splab{I}}{R}{\Delta}{\Theta}{\mathcal{E}} \elab \Gamma'
           }{
           \vdash \Gamma \elab \Gamma'
           }
+        \\ \\
       \end{array}
     \]
   \end{subfigure}
@@ -1609,154 +1764,189 @@ Rules marked by \les indicate rules part of the subtyping proposal for Cedille 1
   \end{subfigure}
 \end{figure}
 
-\begin{figure}[p]
-  \[
-    \begin{array}{cc}
-      \infer
-      { \Gamma \vdash x : \Gamma(x) \elab x}{}
-      &
-        \infer
-        { \Gamma \vdash \absu{\lambda}{x}{t} : \abs{\Pi}{x}{S}{T} \elab \absu{λ}{x}{t'}}
-        { \Gamma \vdash S : ★ \elab S'
-        \quad \Gamma, \ann{x}{S} \vdash t : T \elab t'
-        }
-      \\ \\
-        \infer
-        { \Gamma \vdash \absu{\Lambda}{x}{t} : \abs{\forall}{x}{S}{T} \elab \absu{Λ}{x}{t'}}
-        { \Gamma \vdash S : ★ \elab S'
-        \quad x \notin FV(|t|)
-        \quad \Gamma, \ann{x}{S} \vdash t : T \elab t'
-        }
-      &
-        \infer
-        { \Gamma \vdash \absu{\Lambda}{X}{t} : \abs{\forall}{X}{K}{T} \elab \absu{Λ}{X}{t'}}
-        { \Gamma \vdash K \elab K'
-        \quad X \notin FV(|t|)
-        \quad \Gamma, \ann{X}{K} \vdash t : T \elab t'
-        }
-      \\ \\
-      \infer
-      { \Gamma \vdash \absu{\Lambda}{x}{t} : \abs{\forall}{x}{S}{T}}
-      { x \notin FV(|t|)
-      \quad \Gamma, \ann{x}{S} \vdash t : T
-      }
-      & \infer
-        { \Gamma \vdash t\ s : [s/x]T \elab t'\ s'}
-        { \Gamma \vdash t : \abs{\Pi}{x}{S}{T} \elab t'
-        \quad \Gamma \vdash s : S \elab s'}
+\begin{itemize}
+\item \(\vdash \Gamma \elab \Gamma'\)
 
+  Read: ``Context $\Gamma$ elaborates to context $\Gamma'$''. These rules are
+  straightforward except for the last: declarations of term variables of type
+  $T$ translate to term variables of type $T'$ (where $T$ elaborates to $T'$
+  under the context prefix), and similarly for type variables.
 
-      \\ \\
-      \infer
-      { \Gamma \vdash t \cdot S : [S/X]T \elab t' ·S'}
-      { \Gamma \vdash t : \abs{\forall}{X}{K}{T} \elab t'
-      \quad \Gamma \vdash S : K \elab S'}
-      &
-        \infer
-        { \Gamma \vdash t\ \mhyph s : [s/x]T \elab t'\ \mhyph s'}
-        { \Gamma \vdash t : \abs{\forall}{x}{S}{T} \elab t'
-        \quad \Gamma \vdash s : S \elab s'}
+  The rule for datatype declarations indicates that these disappear completely.
 
-      \\ \\
-      \infer
-      { \Gamma \vdash t : T \elab t'}
-      {
-        \Gamma \vdash t : S \elab t'
-        \quad S \cong T
-        \quad \Gamma \vdash T : ★ \elab T'
-      %   \Gamma \vdash t : T \elab t'
-      %   & \Gamma \vdash S : ★ \elab S'
-      %   \\[1pt] \Gamma \vdash T : ★ \elab T'
-      %   & |S'| =_{\beta\eta} |T'|
-      % \end{array}
-          }
-      &
-        \infer{
-        \Gamma \vdash [t_1,t_2] : \abs{ι}{x}{T_1}{T_2} \elab [t_1',t_2']
-        }{
-        \Gamma \vdash t_1 : T_1 \elab t_1'
-        \quad \Gamma \vdash t_2 : [t_1/x]T_2 \elab t_2'
-        \quad t_1' \cong t_2'
-        }
-      \\ \\
-      \infer{
-      \Gamma \vdash t.1 : T_1 \elab t'.1
-      }{
-      \Gamma \vdash t : \abs{ι}{x}{T_1}{T_2}
-      }
-      &
-        \infer{
-        \Gamma \vdash t.2 : [t.1/x]T_2 \elab t'.2
-        }{
-        \Gamma \vdash t : \abs{ι}{x}{T_1}{T_2} \elab t'
-        }
-      \\ \\
-      \infer
-      { \Gamma \vdash \beta : \{ |t| ≃ |t| \} \elab β}
-      { \Gamma \vdash \{ |t| ≃ |t| \} : \star \elab \{p ≃ p\}
-      }
-      &
-        \infer{
-        \Gamma\vdash \rho\ s\ @\ x.T_2\ \mhyph\ t : [t_2/x]T_2
-        \elab ρ\ s'\ @\ x.T_2'\ \mhyph\ t'
-        }{
+\item \(\Gamma ; (\vars{\ann{a}{A}}) \vdash \vars{s} : (\vars{\ann{a}{B}}) \elab
+  \vars{s'}\)
+
+  Read: ``Under context $\Gamma$ and a dependent telescope $(\vars{a}{A})$ of
+  term and type variables, the sequence of (term and type) expressions
+  $\vars{s}$ can be classified by the telescope $(\vars{a}{B})$, elaborating
+  expressions $s'$''
+
+  It is helpful to give an example: let the telescope to the right of the
+  $\vdash$ be $(\ann{x_1}{S_1},\ann{y_1}{T_1\ x_1})$ (for some declared types $S_1 :
+  ★$ and $T_1 : S_1 ➔ ★$), and the one to the left of the colon $:$ be
+  $(\ann{x_2}{S_2},\ann{y_2}{T_2\ x_2})$ (for some declared types $S_2 : ★$ and $T_2 :
+  S_2 ➔ ★$). The sequence of expressions we will classify with these telescopes
+  are \(cast\ x_1, f\ (cast\ x_1)\), where $cast : S_1 ➔ S_2$ and $f :
+  \abs{Π}{z}{S_2}{T_2\ z}$ are also declared terms.
+
+  Using the second rule, we first check that $cast\ x_1$ has type $S_2$ under a
+  context extended by $\ann{x_1}{S_1}$; let us say resulting elaborated term is
+  $cast'\ x_1$. We now check the rest of the telescope under a context similarly
+  extended, substituting $[cast\ x_1/x_2]$ in $T_2\ x_2$.
+
+  Now it remains to check $f\ (cast\ x_1)$ against type $T_2\ (cast\ x_1)$ (we
+  do not need the additional assumption $\ann{y_1}{T_1\ x_1}$ that the context
+  was extended by, but we still need to make use of $\ann{x_1}{S_1}$).
+  Let us say this elaborates to $f'\ (cast'\ x_1)$. So the whole sequence
+  elaborates $cast'\ x_1,\ f'\ (cast'\ x_1)$
+
+  Though not enforced by these three rules, the judgment for telescope coercions
+  will only ever be used for elaborating (zero-cost) coercions of the variables
+  of a telescope, meaning that in all uses of the judgment $|\vars{s}| = |\vars{a}|$.
+\end{itemize}
+
+\newpage
+\section{Elaborating Subtyping Rules}
+
+\begin{figure}[h!]
+  \begin{subfigure}{1\linewidth}
+    \caption{\fbox{\(\Gamma \vdash S \les T \elales s'\)} Elaboration of subtyping}
+    \label{sfig:elab-subtype}
+    \[
+      \begin{array}{c}
         \begin{array}{cc}
-          \Gamma \vdash s : \{ |t_1| ≃ |t_2| \} \elab s'
-          & \Gamma\vdash t : [t_1/x]T_1 \elab t'
-          \\ T_1 \cong T_2
-          & \Gamma \vdash [t_2/x]T_2 : ★ \elab [t_2'/x]T_2'
-        \end{array}
+          \infer{
+          \Gamma \vdash S \les T \elales \absu{λ}{x}{x}
+          }{
+          S \cong T
+          }
+          & \infer{
+            \Gamma \vdash S\ \vars{s\splab{I}_1} \les D\ \vars{s\splab{P}}\
+            \vars{s\splab{I}_2}
+            \elales \texttt{to/}D\ \vars{s\splab{P}}\ \mhyph\vars{s\splab{I}_1}\
+            \mhyph\ x
+            }{
+            \begin{array}{c}
+              |\vars{s\splab{I}_1}| \cong |\vars{s\splab{I}_2}|
+              \quad \indeli{D}{\Gamma\splab{P}}{\Gamma\splab{I}}{R}{\Delta}{\Theta}{\mathcal{E}}
+              \in \Gamma
+              \\ (\texttt{Is/}D, \texttt{to/}D) \in \Theta
+              \quad \Gamma \vdash x : \texttt{Is/}D\ \vars{s\splab{P}}\ S
+            \end{array}
             }
+        \end{array}
 
-      \\ \\
-      \infer
-      { \Gamma \vdash \varphi\ s - t_1\ \{t_2\} : T
-      \elab φ\ s' - t_1'\ \{t_2'\}
-      }{
-      \Gamma \vdash s : \{ |t_1| ≃ |t_2| \} \elab s'
-      \quad \Gamma \vdash t_1 : T \elab t_1'
-      \quad \Gamma \vdash t_2 \elab t_2'
-      }
-      & \infer
-        { \Gamma \vdash δ\ T - t : T \elab δ\ T - t'}
-        { \Gamma \vdash t : \{ \absu{λ}{x}{\absu{λ}{y}{x}} ≃
-        \absu{λ}{x}{\absu{λ}{y}{x}} \} \elab t'
-        \quad \Gamma \vdash T : ★ \elab T'
+        \\ \\
+        \infer{
+        \Gamma \vdash \abs{Π}{x}{S_1}{T_1} \les \abs{Π}{x}{S_2}{T_2}
+        \elales
+        \absu{λ}{f}{\absu{λ}{x}{[x/y]t\ (f\ (s\ x))}}
+        }{
+        \Gamma \vdash S_2 \les S_1 \elales s
+        \quad \Gamma,\ann{y}{S_2} \vdash
+        [(s\ y)/x]T_1 \les [y/x]T_2 \elales t
         }
-    \end{array}
-  \]
-  \caption{\fbox{\(\Gamma \vdash t : T \elab t'\)} Term elaboration (without datatypes)}
-  \label{fig:type-checking}
+
+        \\ \\
+        \infer{
+        \Gamma  \vdash \abs{∀}{x}{S_1}{T_1} \les \abs{∀}{x}{S_2}{T_2}
+        \elales
+        \absu{λ}{f}{\absu{Λ}{x}{[x/y]t\ (f\ \mhyph(s\ x))}}
+        }{
+        \Gamma \vdash S_2 \les S_1 \elales s
+        \quad \Gamma,\ann{y}{S_2} \vdash
+        [(s\ y)/x]T_1 \les [y/x]T_2 \elales t
+        }
+
+        \\ \\
+        \infer{
+        \Gamma \vdash \abs{ι}{x}{S_1}{T_1} \les \abs{ι}{x}{S_2}{T_2}
+        \elales
+        \absu{λ}{u}{[s\ u.1 , [u.1/y]t\ u.2]}
+        }{
+        \Gamma \vdash S_1 \les S_2 \elales s
+        \quad \Gamma,y: S_1 \vdash [y/x]T_1 \les [(s\ y)/x]T_2 \elales t
+        }
+
+        \\ \\
+        \infer{
+        \Gamma \vdash \abs{∀}{X}{K_1}{T_1} \les \abs{∀}{X}{K_2}{T_2}
+        \elales
+        \absu{λ}{f}{\absu{Λ}{X}{[X/Y]s\ (f ·(S ·X))}}
+        }{
+        \Gamma \vdash K_2 \les K_1 \elales S
+        \quad \Gamma,Y:K_2 \vdash [(S ·Y)/X]T_1 \les [Y/X]T_2 \elales s
+        }
+      \end{array}
+    \]
+  \end{subfigure}
+  \begin{subfigure}{1\linewidth}
+    \caption{\fbox{\(\Gamma \vdash K_1 \les K_2 \elales S\)} Elaboration of subkinding}
+    \label{sfig:elab-subkind}
+    \[
+      \begin{array}{c}
+        \begin{array}{cc}
+          \infer{
+          \Gamma ; s \vdash ★\ \les\ ★
+          \elales
+          \absu{λ}{X}{X}
+          }{
+          }
+          &
+            \infer{
+            \Gamma \vdash \abs{Π}{x}{S_1}{K_1} \les \abs{Π}{x}{S_2}{K_2}
+            \elales
+            \absu{λ}{P}{\absu{λ}{x}{ [x/y]S · (P\ (s\ x)) }}
+            }{
+            \Gamma  \vdash S_2 \les S_1 \elales s
+            \quad
+            \Gamma, y: S_2 \vdash [(s\ y)/x]K_1 \les [y/x]K_2
+            \elales S
+            }
+        \end{array}
+        \\ \\
+        \infer{
+        \Gamma \vdash \abs{Π}{X}{K_1}{K_2} \les\ \abs{Π}{X}{K_1'}{K_2'}
+        \elales
+        \absu{λ}{P}{\abs{λ}{X}{ [X/Y]S_2 ·(P ·(S_1 · X)) }}
+        }{
+        \Gamma \vdash K'_1 \les\ K_1
+        \elales S_1
+        \quad
+        \Gamma,Y: K_1' \vdash [(S_1 · Y)/X]K_2\ \les\ [Y/X]K_2'
+        \elales S_2
+        }
+      \end{array}
+    \]
+  \end{subfigure}
 \end{figure}
 
-% TODO kind-variables... two different rules or Var check?
-% TODO equality, now that it can have rho, phi
+\subsection{Subtyping}
 
-% The inference rules for classifying expressions in Cedilleum are stratified into
-% two judgments. Figure \ref{fig:sort-checking} gives the uni-directional rules
-% for ensuring types are well-kinded and kinds are well-formed. Future versions of
-% Cedilleum will allow for bidirectional checking for both typing \textit{and}
-% sorting, allowing for a unification of these two figures. Most of these rules
-% are similar to what one would expect from the Calculus of Implicit
-% Constructions, so we focus on the typing rules unique to Cedilleum.
+Figure \ref{sfig:elab-subtype} shows Cedille's evidence-producing subtyping
+rules. The core rule is in the first row, second column; the rest are congruence
+and convertibility rules.
 
-% The typing rule for ρ shows that ρ is a primitive for rewriting by an (untyped)
-% equality. If $t$ is an expression that synthesizes a proof that two terms $t_1$
-% and $t_2$ are equal, and $t'$ is an expression synthesizing type $[t_1/x]\ T$
-% (where, as per the footnote, $t_1$ does not occur in $T$), then we may
-% essentially rewrite its type to $[t_2/x]\ T$. The rule for β is reflexivity for
-% equality -- it witnesses that a term is equal to itself, provided that the type
-% of the equality is well-formed. The rule for ς is symmetry for equality.
-% Finally, φ acts as a ``casting'' primitive: the rule for its use says that if
-% some term $t$ witnesses that two terms $t_1$ and $t_2$ are equal, and $t_1$ has
-% been judged to have type $T$, then intuitively $t_2$ can also be judged to have
-% type $T$. (This intuition is justified by the erasure rule for φ -- the
-% expression erases to $|t_2|$). The last rule involving equality is for δ, which
-% witnesses the logical principle \textit{ex falso quodlibet} -- if a certain
-% impossible equation is proved (namely that the two Church-encoded booleans
-% \texttt{tt} and \texttt{ff} are equal), then \textit{any} type desired is
-% inhabited. The remaining primitive χ allows the user to provide an
-% explicit top-level annotation for a term.
+Read the judgment \(\Gamma \vdash S \les T \elales s'\) as: ``under a context
+$\Gamma$, type $S$ is a subtype of $T$ and the coercion that witnesses this is
+$s'$''. For the core rule of this judgment, we are in a case where we are trying
+to show some type $S$ applied to term and type arguments $\vars{s\splab{I}_1}$
+is a subtype of datatype $D$ (instantiated with parameters $\vars{s\splab{P}}$
+and indicies $\vars{s\splab{I}_2}$). We check that the two sets of indices are
+equal, that $D$ really is a declared datatype, and finally that we have some
+assumption already in the context which tells us that type $S$ ``is'' a $D\
+\vars{s\splab{P}}$. The global names $\texttt{to/}D$ and $\texttt{Is/}D$ are
+explained in Section \ref{sec:ind-data} (and in Section \ref{sec:intro}); here
+it suffices to say that $\texttt{to/}D$ is a zero-cost cast (modulo the same
+indices) from any type $S$ to $D\ \vars{s\splab{P}}$ when it is provided
+evidence that \(\texttt{Is/}D\ \vars{s\splab{P}}\ ·S\).
+
+One helpful way to view these rules is as a type-guided construction of
+zero-cost casts between two types following structural subtyping rules, where
+our base subtyping assumptions are given by variables declared in the typing
+context of an appropriate type.
+
 \newpage
 \section{Inductive Datatypes}
 \label{sec:ind-data}
