@@ -93,8 +93,7 @@
 
 \begin{document}
 
-\title{Cedille 1.1.0 Datatype System Specification \\ \large Syntax, Typing, Reduction,
-  and Elaboration }
+\title{Cedille Datatype System Specification \\ \large Version 1.1.\{0,1\}}
 
 \author{Christopher Jenkins}
 
@@ -1996,7 +1995,7 @@ intrId: ∀ A: \(\Gamma\splab{I}\) ➔ ★. ∀ B: \(\Gamma\splab{I}\) ➔ ★.
 = <..>
 
 elimId: ∀ A: \(\Gamma\splab{I}\) ➔ ★. ∀ B: \(\Gamma\splab{I}\) ➔ ★. ∀ _: Id ·A ·B. ∀ \(\Gamma\splab{I}\). A \(\Gamma\splab{I}\) ➔ B \(\Gamma\splab{I}\)
-= <..>.
+= <..>
 _ : \{elimId ≃ λ x. x\} = β.
 
 IdMapping: ((\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★)) ➔ ★
@@ -2066,25 +2065,30 @@ The elaborator interface is implemented using the definitions in Figures
 \ref{sfig:elab-toolkit} and \ref{sfig:elab-mendler}, which list resp. a set of
 utilities and the primary results provided by the generic framework. Our
 implementation regenerates these definitions for each datatype to support large
-indices (type-indexed types), not handled by the generic framework. All such definitions
+indices (type-indexed types), not handled by the generic framework. To declutter
+the presentation, we list the definitions in a module parameterized over
+\(\Gamma\splab{P}\), a telescope of datatype parameters. For any particular
+instantiation of datatype parameters and indices, all of these definitions
 are definable in Cedille \textit{without datatypes} and thus map straightforwardly
 to CDLE. For the utilities, we have:
 \begin{itemize}
 \item \texttt{Id}, \texttt{intrId}, \texttt{elimId}: \texttt{Id} is a generalized type of identity functions in CDLE using the
   fact that a term may have multiple types. A term $c$ of type
   $\texttt{Id} ·A ·B$ is a dependent pair ($\Sigma$, also definable) whose first projection
-  $\pi_1\ c$ has type \(A ➔ B\) and second $\pi_2\ c$ is a
+  $\pi_1\ c$ has type \(∀ \Gamma\splab{I}. A\ \Gamma\splab{I} ➔ B\ \Gamma\splab{I}\) and second $\pi_2\ c$ is a
   proof that \(\{\pi_1\ c ≃ \absu{λ}{x}{x}\}\). Its eliminator \texttt{elimId}
   is convertible with $\absu{λ}{x}{x}$.
-\item \texttt{IdMapping}, \texttt{imap}: \texttt{IdMapping} is a generalization of a functor where the mapping
+\item \texttt{IdMapping}, \texttt{imap}: \texttt{IdMapping} is a generalization
+  of the notion of a functor where the mapping 
   need only be defined for identity functions. A term of type $\texttt{IdMapping}
   · F$ can be viewed as a proof that $F$ is positive. Our elaborator
   produces such a proof when checking datatype positivity. \texttt{imap} maps such
   an identity function over $F$ and is convertible with $\absu{λ}{x}{x}$.
 \end{itemize}
 
-\noindent For the generic framework, taking module parameters $(F : ★ ➔ ★)$ and
-$\{im : \texttt{IdMapping} ·F\}$ (with curly braces indicating $im$ is an erased
+\noindent For the generic framework, taking module parameters
+\((\Gamma\splab{P})\), $(F : (\Gamma\splab{I} ➔ ★) ➔ (\Gamma\splab{I} ➔ ★))$ and
+$\{im : \texttt{IdMapping}\ \Gamma\splab{I} ·F\}$ (with curly braces indicating $im$ is an erased
 parameter): 
 \begin{itemize}
 \item \texttt{Fix}, \texttt{D}, \texttt{in}, \texttt{out}: resp. the
@@ -2093,10 +2097,10 @@ parameter):
 
 \item \texttt{PrfAlg}: an inductive version of the Mendler-style CoV algebra.
   Its additional (erased) arguments are $c$, an identity function from $R$ to
-  \texttt{D}, and $oeq$, a proof that the abstract destructor $o$ is equal to
+  \texttt{D} (for any indices \(\Gamma\splab{I}\)), and $oeq$, a proof that the abstract destructor $o$ is equal to
   \texttt{out}. Argument $c$ is required to be even able state the result of
-  \texttt{PrfAlg}: that $P$ holds of the \texttt{in} of $f\!r$ coerced (using
-  \texttt{imap}) to type $F ·\texttt{D}$.
+  \texttt{PrfAlg}: that for all \(\Gamma\splab{I}\), $P$ holds of the \texttt{in} of $f\!r$ coerced (using
+  \texttt{imap}) to type $F ·\texttt{D}\ \Gamma\splab{I}$.
 \item \texttt{induction}, \texttt{inductionComp}: the generic induction
   principle for \texttt{D} and its computation law
 \item \texttt{lambek1} and \texttt{lambek2}, the proofs of \textit{Lambek's
@@ -2106,40 +2110,52 @@ parameter):
 \subsection{Elaborator Interface}
 \label{ssec:elab-interface}
 There is a discrepancy between the facilities of the generic framework and the
-design of the surface language. In the former, a function like \texttt{minus'}
+design of the surface language. In the former, a function like \texttt{minusCV}
 (Figure \ref{fig:cov-divide}) must be given $o$, the abstract \texttt{out} of
 type \(N ➔ \texttt{Nat\splab{FI}} ·N\) (where $N$ is the type variable bound in the
-\texttt{PrfAlg} given to \texttt{induction}, and \texttt{Nat\splab{FI}} is the 
-inductive signature functor of \texttt{Nat}), directly. Doing the same in the surface
+\texttt{PrfAlg} given to \texttt{induction}, and \texttt{Nat\splab{FI}} is a
+signature functor of \texttt{Nat} that will support proofs by cases, see TODO a
+following section), directly. Doing the same in the surface
 language has the undesirable consequence of exposing 
 \texttt{Nat\splab{FI}} to the user. Worse still, \(\texttt{minus'}\ o\) is not
-definitionally equal to \(\texttt{minus} = \texttt{minus'}\ \texttt{out}\), and
+definitionally equal to \(\texttt{minus}\) defined as \(\texttt{minus'}\ \texttt{out}\), and
 so proofs like \texttt{leDiv} (Figure \ref{fig:cov-induction}) would require
 explicit use of $oeq : \{o ≃ \texttt{out}\}$, as they do when using the
 framework directly.
 
-\begin{figure}[h]
+\begin{figure}[htbp!]
 {
 \begin{alltt}
-module DataInterface (F: ★ ➔ ★) \{im: IdMapping · F\}.
-import GenericInd ·F -im.
+import Positivity.
 
-View: Π A: ★. Π a: A. ★ ➔ ★ = λ A: ★. λ a: A. λ B: ★. \(\Sigma\) b: B. \{a ≃ b\}.
+module DataInterface (\(\Gamma\splab{P}\)) (F: (\(\Gamma\splab{I}\) ➔ ★) ➔ (\(\Gamma\splab{I}\) ➔ ★)) \{im: IdMapping \(\Gamma\splab{P}\) ·F\}.
+import GenericInd \(\Gamma\splab{P}\) ·F -im.
+
+View: Π A: ★. Π a: A. ★ ➔ ★
+= λ A: ★. λ a: A. λ B: ★. \(\Sigma\) b: B. \{a ≃ b\}.
+
 intrView: ∀ A: ★. ∀ B: ★. ∀ a: A. Π b: B. \{b ≃ a\} ➔ View ·A a ·B
   = Λ A. Λ B. Λ x. λ y. λ eq. (y , eq).
+
 elimView: ∀ A: ★. ∀ B: ★. Π a: A. ∀ _: View ·A a ·B. B
-  = Λ A. Λ B. λ a. Λ v. φ (\(\pi_2\) v) - (\(\pi_1\) v) \{a\}.
+  = Λ A. Λ B. λ a. Λ v. φ (\(\pi\sb{2}\) v) - (\(\pi\sb{1}\) v) \{a\}.
 _ : \{elimView ≃ λ x. x\} = β.
 
-IsD: ★ ➔ ★ = λ R: ★. (Id ·R ·D) \(\times\) (View ·(D ➔ F ·D) out ·(R ➔ F ·R)).
-isD: IsD ·D = (intrId (λ x. x) (λ _. β) , intrView -out out β).
-toD: ∀ R: ★. ∀ _: IsD ·R. R ➔ D = Λ R. Λ is. λ r. elimId -(\(\pi\sb{1}\) is) r.
-toFD: ∀ R: ★. ∀ _: IsD ·R. F ·R ➔ F ·D = Λ R. Λ is. λ fd. imap -pos -(\(\pi\sb{1}\) is) fd.
+IsD: (\(\Gamma\splab{I}\) ➔ ★) ➔ ★
+= λ R: (\(\Gamma\splab{I}\) ➔ ★). (Id ·R ·D) \(\times\) (View ·(∀ \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ F ·D \(\Gamma\splab{I}\)) out ·(∀ \(\Gamma\splab{I}\). R \(\Gamma\splab{I}\) ➔ F ·R \(\Gamma\splab{I}\))).
 
-ByCases: (D ➔ ★) ➔ Π R: ★. IsD ·R ➔ ★
-  = λ P: D ➔ ★. λ R: ★. λ is: IsD ·R. Π fr: F ·R. P (in (toFD -is fr)).
-mu': ∀ R: ★. ∀ is: IsD ·R. Π r: R. ∀ P: D ➔ ★. ByCases ·P ·R is ➔ P (toD -is r)
-  = Λ R. Λ is. λ r. Λ P. λ case. ρ (lambek2 (toFD -is r)) - case (elimView out -(\(\pi\sb{1}\) is) r)
+isD: IsD ·D = <..>
+toD: ∀ R: \(\Gamma\splab{I}\) ➔ ★. ∀ _: IsD ·R. ∀ \(\Gamma\splab{I}\). R \(\Gamma\splab{I}\) ➔ D \(\Gamma\splab{I}\) = <..>
+toFD: ∀ R: \(\Gamma\splab{I}\) ➔ ★. ∀ _: IsD ·R. ∀ \(\Gamma\splab{I}\). F ·R \(\Gamma\splab{I}\) ➔ F ·D \(\Gamma\splab{I}\) = <..>
+_ : \{toD ≃ λ x. x\} \(\times\) \{toFD ≃ λ x. x\} = (β , β).
+
+ByCases: (Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★) ➔ Π R: \(\Gamma\splab{I}\) ➔ ★. IsD ·R ➔ ★
+  = λ P: Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★. λ R: \(\Gamma\splab{I}\) ➔ ★. λ is: IsD ·R. ∀ \(\Gamma\splab{I}\). Π fr: F ·R \(\Gamma\splab{I}\). P \(\Gamma\splab{I}\) (in (toFD -is \(\Gamma\splab{I}\) fr)).
+mu': ∀ R: \(\Gamma\splab{I}\) ➔ ★. ∀ is: IsD ·R. ∀ \(\Gamma\splab{I}\). Π r: R \(\Gamma\splab{I}\). ∀ P: Π \(\Gamma\splab{I}\). D \(\Gamma\splab{I}\) ➔ ★.
+  ByCases ·P ·R is ➔ P (toD -is \(\Gamma\splab{I}\) r)
+= Λ R. Λ is. Λ \(\Gamma\splab{I}\). λ r. Λ P. λ case.
+  ρ (lambek2 \(\Gamma\splab{I}\) (toFD -is \(\Gamma\splab{I}\) r))
+- case \(\Gamma\splab{I}\) (elimView out -(\(\pi\sb{1}\) is) -\(\Gamma\splab{I}\) r)
 
 ByInd: (D ➔ ★) ➔ ★
   = λ P: D ➔ ★. ∀ R: ★. ∀ is: IsD ·R. (Π r: R. P (toD -is r)) ➔ ByCases ·P ·R is.
